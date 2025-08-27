@@ -21,7 +21,6 @@ End Type
 Private wsCache As WorksheetCache
 Private Const CACHE_MISS As Long = -1
 
-' Main entry point - fully optimized workflow
 Public Sub ProcessDataFile()
     DevToolsMod.TimerStartCount
     DevToolsMod.OptimizePerformance True
@@ -47,17 +46,17 @@ CleanExit:
     DevToolsMod.TimerEndCount "Total Data Processing"
 End Sub
 
-' Fast initialization with immediate data validation
+' Modified initialization - create fresh instance
 Private Function InitializeTestData() As Boolean
+    ' Create fresh instance (old one disposed in cleanup)
     Set TestData = New DataFileClassMod
     Set TestData.WorkbookInstance = ThisWorkbook
     
     ' Quick validation - single cell read
     TestData.DataExist = (Sheets("RawData").Cells(1, 1).Value = "HEADER")
     
-    If TestData.DataExist Then
-        Call TableMod.DeleteDataTables("A1")
-    End If
+    ' Note: DeleteDataTables is now handled by CleanupBeforeNewFile
+    ' so we don't call it here anymore
     
     InitializeTestData = TestData.DataExist
 End Function

@@ -20,7 +20,7 @@ Application.ScreenUpdating = False
         DataFileMod.ProcessDataFile
         
     'perform standard specific operations
-        ISO16889Mod.SetupISO16889ClassModule
+        Call ProcessCurrentStandard
     
    ' Update the Dashboard buttons/appearance based on data presence
         UpdateDashboard
@@ -124,6 +124,36 @@ Sub UpdateDashboard()
     End With
 End Sub
 
+Private Sub ProcessCurrentStandard()
+    Dim currentStandard As String
+    currentStandard = DetermineStandardFromFile()
+    
+    Select Case currentStandard
+        Case "ISO16889"
+            Call ISO16889Mod.SetupISO16889ClassModule
+        Case "ISO23369"
+            ' Call ISO23369Mod.SetupISO23369ClassModule  ' Future
+        Case Else
+            Call ISO16889Mod.SetupISO16889ClassModule  ' Default fallback
+    End Select
+End Sub
+
+Private Function DetermineStandardFromFile() As String
+    If DataFileMod.TestData Is Nothing Then
+        DetermineStandardFromFile = "ISO16889"
+        Exit Function
+    End If
+    
+    Select Case DataFileMod.TestData.testType
+        Case "Single-Pass", "Multipass", "Multipass Series"
+            DetermineStandardFromFile = "ISO16889"
+        Case "Cyclic Multipass", "Cyclic Series Multipass"
+            DetermineStandardFromFile = "ISO23369"
+        Case Else
+            DetermineStandardFromFile = "ISO16889"
+    End Select
+End Function
+
 
 Private Sub HandleButton(ws As Worksheet, btnName As String, _
                          enableButton As Boolean, Optional macroName As String = "")
@@ -221,92 +251,6 @@ Public Sub ToggleReportUnits()
     
     UpdateDashboard
 End Sub
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-'Function EvaluateTestType() As Boolean
-'
-'   Dim testType As String
-'   Dim TestSetup As String
-'   Dim Midstream As Boolean
-'
-'    ' Initialize variables.
-'    testType = GetSaveResult(14)
-'    TestSetup = GetSaveResult(39)
-'    'Midstream = Sheets(cDF_Sort).Range("RD_MidstreamFlag")
-'
-'    'Morph main form based on test type
-'    Select Case testType    ' Evaluate Number.
-'        Case "Multipass", "Singlepass"
-'
-'
-'            'Update Window Caption based on test type
-'
-'                Me.ReportType_lb.Caption = "Light Blocking"
-'                Me.ReportType_ls.Caption = "Light Scattering"
-'
-'
-'            'Return True
-'            EvaluateTestType = True
-'
-'        Case "Multipass Series"
-'
-'
-'            'Update Window Caption based on test setup.
-'            If TestSetup = "Suction Pressure" Then
-'                Me.Caption = "Suction Series Report Writer (ver. " & Range("RW_Version_Num") & ")"
-'            Else
-'
-'                Me.Caption = "Multipass Series Report Writer (ver. " & Range("RW_Version_Num") & ")"
-'            End If
-'
-'
-'            'Enable Filter 1 or 2 if Multipass Series is on
-'                Me.ReportType_lb.Caption = "PreFilter"
-'                Me.ReportType_ls.Caption = "Final Filter"
-'
-'            'Return True
-'            EvaluateTestType = True
-'
-'
-'        Case "Data Only", "PQ", "Cyclic Multipass", "Cyclic Series Multipass"
-'            'No not like that.
-'            MsgBox "Cannot report Test Type:" & testType
-'            EvaluateTestType = False
-'
-'
-'        Case Else
-'            'Definitely not like that.
-'            MsgBox "Unrecognized Test Type"
-'            EvaluateTestType = False
-'
-'
-'        End Select
-'
-'End Function
-
-
 
 
 

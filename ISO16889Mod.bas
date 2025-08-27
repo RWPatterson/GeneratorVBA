@@ -15,10 +15,9 @@ Public Sub SetupISO16889ClassModule()
     
     On Error GoTo CleanExit
     
-    If ISO16889ReportData Is Nothing Then
-        Set ISO16889ReportData = New ISO16889ClassMod
-        Set ISO16889ReportData.WorkbookInstance = ThisWorkbook
-    End If
+    ' Always create a fresh instance (disposal handled in CleanupBeforeNewFile)
+    Set ISO16889ReportData = New ISO16889ClassMod
+    Set ISO16889ReportData.WorkbookInstance = ThisWorkbook
     
     If DataFileMod.TestData.DataExist Then
         ' CRITICAL: Validate file compatibility first
@@ -201,8 +200,8 @@ End Function
 '======================================================================
 
 Sub FillISO16889SaveData()
-    ' CRITICAL: Suppress change events during automated updates
-    Sheets("Save_Data").BeginAutomatedUpdate
+    ' CRITICAL: Suppress change events during automated updates using SaveDataMod
+    Call SaveDataMod.BeginAutomatedUpdate
     
     On Error GoTo CleanupEvents
     
@@ -225,8 +224,8 @@ Sub FillISO16889SaveData()
     Call SetISO16889DataEntry(8, ISO16889ReportData.TerminationSizePhrase)
     
 CleanupEvents:
-    ' CRITICAL: Re-enable change events
-    Sheets("Save_Data").EndAutomatedUpdate
+    ' CRITICAL: Re-enable change events using SaveDataMod
+    Call SaveDataMod.EndAutomatedUpdate
 End Sub
 
 ' Enhanced with performance optimization
@@ -671,6 +670,56 @@ ErrorHandler:
     ' Silent error handling
 End Sub
 
+'************************************************************************
+'****************  Save Data Table Management  *************************
+'************************************************************************
+
+' Clear all ISO16889 save data when loading new file
+Public Sub ClearISO16889SaveData()
+    Dim ws As Worksheet
+    Dim tbl As ListObject
+    Dim fromDataCol As Range
+    Dim cell As Range
+    
+    Application.EnableEvents = False
+    On Error GoTo CleanupEvents
+    
+    Set ws = Sheets("Save_Data")
+    Set tbl = ws.ListObjects("ISO16889SaveDataTable")
+    
+    If tbl.ListRows.count > 0 Then
+        ' Clear User Entry column completely
+        tbl.ListColumns("User Entry").DataBodyRange.ClearContents
+        
+        ' Clear From Data selectively (preserve formulas, clear module-set values)
+        Set fromDataCol = tbl.ListColumns("From Data").DataBodyRange
+        For Each cell In fromDataCol
+            If Not cell.hasFormula Then
+                ' Clear only rows that ISO16889 modules populate (IDs 1,2,3,4,7,8)
+                If IsISO16889ModuleDataRow(cell.Row - tbl.HeaderRowRange.Row) Then
+                    cell.ClearContents
+                End If
+            End If
+        Next cell
+    End If
+    
+CleanupEvents:
+    Application.EnableEvents = True
+    Application.Calculate
+End Sub
+
+Private Function IsISO16889ModuleDataRow(rowID As Long) As Boolean
+    ' Only clear rows that ISO16889 modules directly populate
+    Select Case rowID
+        Case 1, 2, 3, 4, 7, 8  ' Termination data set by SetISO16889DataEntry
+            IsISO16889ModuleDataRow = True
+        Case Else
+            IsISO16889ModuleDataRow = False  ' Formula-calculated or other data
+    End Select
+End Function
+
+
+
 '======================================================================
 '================ CHART SETUP FUNCTIONS ==============================
 '======================================================================
@@ -723,3 +772,245 @@ Sub SetISO16889C6DnCountsVsTime()
     Call SetChartSeriesByRange("C6_Down_Counts", "ISO16889C6DnCountsVsTimeChart", "V3")
 End Sub
 
+'======================================================================
+'================ CLEANUP AND DISPOSAL FUNCTIONS ====================
+'======================================================================
+
+' Call this function before loading any new data file
+Public Sub CleanupBeforeNewFile()
+    DevToolsMod.TimerStartCount
+    
+    ' 1. Properly dispose class modules
+    Call DisposeISO16889ClassModule
+    Call DisposeDataFileClassModule
+    
+    ' 2. Selectively clear From Data column entries (preserve formulas)
+    Call ClearFromDataEntries
+    
+    ' 3. Clear data sheets (existing functionality)
+    Call TableMod.DeleteDataTables("A1")
+    
+    ' 4. Clear ISO 16889 specific data
+    Call ClearISO16889Data
+    
+    DevToolsMod.TimerEndCount "Complete Cleanup"
+End Sub
+
+' Properly dispose of ISO16889 class module
+Private Sub DisposeISO16889ClassModule()
+    On Error Resume Next
+    
+    If Not ISO16889ReportData Is Nothing Then
+        ' Clear any cached data first
+        Call ISO16889ReportData.InvalidateCache
+        
+        ' Clear arrays to free memory
+        If Not IsEmpty(ISO16889ReportData.C_Times) Then
+            Erase ISO16889ReportData.C_Times
+        End If
+        If Not IsEmpty(ISO16889ReportData.C_Pressures) Then
+            Erase ISO16889ReportData.C_Pressures
+        End If
+        If Not IsEmpty(ISO16889ReportData.C_Masses) Then
+            Erase ISO16889ReportData.C_Masses
+        End If
+        If Not IsEmpty(ISO16889ReportData.CU_LB) Then
+            Erase ISO16889ReportData.CU_LB
+        End If
+        If Not IsEmpty(ISO16889ReportData.CD_LB) Then
+            Erase ISO16889ReportData.CD_LB
+        End If
+        If Not IsEmpty(ISO16889ReportData.Beta_LB) Then
+            Erase ISO16889ReportData.Beta_LB
+        End If
+        If Not IsEmpty(ISO16889ReportData.CU_LS) Then
+            Erase ISO16889ReportData.CU_LS
+        End If
+        If Not IsEmpty(ISO16889ReportData.CD_LS) Then
+            Erase ISO16889ReportData.CD_LS
+        End If
+        If Not IsEmpty(ISO16889ReportData.Beta_LS) Then
+            Erase ISO16889ReportData.Beta_LS
+        End If
+        If Not IsEmpty(ISO16889ReportData.CU_LBE) Then
+            Erase ISO16889ReportData.CU_LBE
+        End If
+        If Not IsEmpty(ISO16889ReportData.CD_LBE) Then
+            Erase ISO16889ReportData.CD_LBE
+        End If
+        If Not IsEmpty(ISO16889ReportData.Beta_LBE) Then
+            Erase ISO16889ReportData.Beta_LBE
+        End If
+        
+        ' Clear object references
+        Set ISO16889ReportData.WorkbookInstance = Nothing
+        Set ISO16889ReportData = Nothing
+    End If
+    
+    On Error GoTo 0
+End Sub
+
+' Dispose of DataFile class module
+Private Sub DisposeDataFileClassModule()
+    On Error Resume Next
+    
+    If Not DataFileMod.TestData Is Nothing Then
+        ' Clear large data arrays to free memory
+        If Not IsEmpty(DataFileMod.TestData.analogData) Then
+            Erase DataFileMod.TestData.analogData
+        End If
+        If Not IsEmpty(DataFileMod.TestData.LBU_CountsData) Then
+            Erase DataFileMod.TestData.LBU_CountsData
+        End If
+        If Not IsEmpty(DataFileMod.TestData.LBD_CountsData) Then
+            Erase DataFileMod.TestData.LBD_CountsData
+        End If
+        If Not IsEmpty(DataFileMod.TestData.LSU_CountsData) Then
+            Erase DataFileMod.TestData.LSU_CountsData
+        End If
+        If Not IsEmpty(DataFileMod.TestData.LSD_CountsData) Then
+            Erase DataFileMod.TestData.LSD_CountsData
+        End If
+        If Not IsEmpty(DataFileMod.TestData.LBE_CountsData) Then
+            Erase DataFileMod.TestData.LBE_CountsData
+        End If
+        If Not IsEmpty(DataFileMod.TestData.cycleAnalogData) Then
+            Erase DataFileMod.TestData.cycleAnalogData
+        End If
+        If Not IsEmpty(DataFileMod.TestData.HeaderData) Then
+            Erase DataFileMod.TestData.HeaderData
+        End If
+        
+        ' Clear object reference
+        Set DataFileMod.TestData.WorkbookInstance = Nothing
+        Set DataFileMod.TestData = Nothing
+    End If
+    
+    On Error GoTo 0
+End Sub
+
+' Clear From Data column entries but preserve formulas
+Private Sub ClearFromDataEntries()
+    On Error Resume Next
+    
+    ' Clear SaveDataTable "From Data" entries (column 5)
+    Call ClearDirectWritesInColumn("SaveDataTable", 5)
+    
+    ' Clear ISO16889SaveDataTable "From Data" entries (column 5)
+    Call ClearDirectWritesInColumn("ISO16889SaveDataTable", 5)
+    
+    On Error GoTo 0
+End Sub
+
+' Helper function to clear only direct writes, preserve formulas
+Private Sub ClearDirectWritesInColumn(tableName As String, columnIndex As Long)
+    Dim ws As Worksheet
+    Dim tbl As ListObject
+    Dim i As Long
+    Dim cellValue As Variant
+    Dim hasFormula As Boolean
+    
+    On Error Resume Next
+    Set ws = Sheets("Save_Data")
+    Set tbl = ws.ListObjects(tableName)
+    
+    If tbl Is Nothing Then Exit Sub
+    
+    ' Suppress change events during cleanup using SaveDataMod
+    Call SaveDataMod.BeginAutomatedUpdate
+    
+    For i = 1 To tbl.DataBodyRange.Rows.count
+        ' Check if cell has a formula
+        hasFormula = (Left(tbl.DataBodyRange(i, columnIndex).Formula, 1) = "=")
+        
+        ' Only clear cells that don't have formulas (direct writes from code)
+        If Not hasFormula Then
+            cellValue = tbl.DataBodyRange(i, columnIndex).Value
+            
+            ' Only clear if there's actually a value (not already empty)
+            If Not IsEmpty(cellValue) And cellValue <> "" Then
+                tbl.DataBodyRange(i, columnIndex).ClearContents
+            End If
+        End If
+    Next i
+    
+    ' Re-enable change events using SaveDataMod
+    Call SaveDataMod.EndAutomatedUpdate
+    On Error GoTo 0
+End Sub
+
+' Clear ISO 16889 specific data sheets
+Private Sub ClearISO16889Data()
+    On Error Resume Next
+    
+    ' Clear the ISO16889Data sheet completely
+    If Not IsEmpty(Sheets("ISO16889Data").Range("A1")) Then
+        Sheets("ISO16889Data").UsedRange.Clear
+    End If
+    
+    ' Clear chart data sheets if they exist
+    Dim chartSheets As Variant
+    chartSheets = Array("C1_DP_v_Mass", "C2_Beta_v_Size", "C3_Beta_v_Time", _
+                       "C4_Beta_v_Press", "C5_Up_Counts", "C6_Down_Counts")
+    
+    Dim i As Long
+    For i = LBound(chartSheets) To UBound(chartSheets)
+        If WorksheetExists(CStr(chartSheets(i))) Then
+            Sheets(CStr(chartSheets(i))).UsedRange.Clear
+        End If
+    Next i
+    
+    On Error GoTo 0
+End Sub
+
+' Helper function to check if worksheet exists
+Private Function WorksheetExists(wsName As String) As Boolean
+    On Error Resume Next
+    WorksheetExists = (Sheets(wsName).Name = wsName)
+    On Error GoTo 0
+End Function
+
+' Debug function to verify cleanup worked
+Public Sub VerifyCleanup()
+    Debug.Print "=== CLEANUP VERIFICATION ==="
+    Debug.Print "ISO16889ReportData Is Nothing: " & (ISO16889ReportData Is Nothing)
+    Debug.Print "TestData Is Nothing: " & (DataFileMod.TestData Is Nothing)
+    
+    On Error Resume Next
+    Dim count1 As Long, count2 As Long
+    count1 = CountNonFormulaEntries("SaveDataTable", 5)
+    count2 = CountNonFormulaEntries("ISO16889SaveDataTable", 5)
+    Debug.Print "SaveDataTable non-formula entries: " & count1
+    Debug.Print "ISO16889SaveDataTable non-formula entries: " & count2
+    On Error GoTo 0
+    
+    Debug.Print "=== END VERIFICATION ==="
+End Sub
+
+Private Function CountNonFormulaEntries(tableName As String, columnIndex As Long) As Long
+    Dim ws As Worksheet
+    Dim tbl As ListObject
+    Dim i As Long
+    Dim count As Long
+    
+    On Error Resume Next
+    Set ws = Sheets("Save_Data")
+    Set tbl = ws.ListObjects(tableName)
+    
+    If tbl Is Nothing Then
+        CountNonFormulaEntries = 0
+        Exit Function
+    End If
+    
+    count = 0
+    For i = 1 To tbl.DataBodyRange.Rows.count
+        If Left(tbl.DataBodyRange(i, columnIndex).Formula, 1) <> "=" Then
+            If Not IsEmpty(tbl.DataBodyRange(i, columnIndex).Value) Then
+                count = count + 1
+            End If
+        End If
+    Next i
+    
+    CountNonFormulaEntries = count
+    On Error GoTo 0
+End Function

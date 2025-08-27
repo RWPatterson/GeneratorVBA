@@ -15,6 +15,11 @@ Function OpenDataFile(Optional Extension As String = "dat", Optional wkSheet As 
     Dim ExtType As String
     Dim FileToOpen As Variant
 
+    DevToolsMod.TimerStartCount
+
+    ' STEP 1: COMPLETE CLEANUP BEFORE LOADING NEW FILE
+    Call ISO16889Mod.CleanupBeforeNewFile
+
     ' Setting file type and location based on the extension provided
     Call SetFileTypeAndLocation(Extension, Location, ExtType)
 
@@ -27,8 +32,7 @@ Function OpenDataFile(Optional Extension As String = "dat", Optional wkSheet As 
     If FileToOpen <> False Then
         ' Set the worksheet where data needs to be loaded
         Set dataSheet = ThisWorkbook.Sheets(wkSheet)
-        ' Clearing any previous contents on the worksheet
-        dataSheet.Cells.ClearContents
+        ' Note: Clearing is now handled by CleanupBeforeNewFile
 
         ' Open the file and get the dataSet
         tempArray = OpenTextAndGetData(FileToOpen)
@@ -51,6 +55,7 @@ Function OpenDataFile(Optional Extension As String = "dat", Optional wkSheet As 
 
     ' Turning the screen updating back on
     Application.ScreenUpdating = True
+    DevToolsMod.TimerEndCount "File Loading with Cleanup"
 End Function
 
 ' Subroutine to set file type and location based on the provided extension

@@ -6,7 +6,7 @@ Option Explicit
 '----------------------------------------------------------------------------------------
 ' FormatChart - Optimized version with improved error handling and performance
 '----------------------------------------------------------------------------------------
-Sub FormatChart(wkSheet As String, chartName As String, TableName As String)
+Sub FormatChart(wkSheet As String, chartName As String, tableName As String)
     On Error GoTo ErrorHandler
     
     Dim ws As Worksheet
@@ -38,7 +38,7 @@ Sub FormatChart(wkSheet As String, chartName As String, TableName As String)
 
     ' Bulk load all parameters in single operation instead of 11 individual calls
     For i = 1 To 11
-        parameterArray(i) = GetChartSaveResult(wkSheet, TableName, i)
+        parameterArray(i) = GetChartSaveResult(wkSheet, tableName, i)
     Next i
     
     ' Apply formatting with single chart reference
@@ -204,7 +204,7 @@ End Sub
 '----------------------------------------------------------------------------------------
 ' GetChartSaveResult - Optimized version with better error handling
 '----------------------------------------------------------------------------------------
-Public Function GetChartSaveResult(wkSheet As String, TableName As String, ID As Integer) As Variant
+Public Function GetChartSaveResult(wkSheet As String, tableName As String, ID As Integer) As Variant
     On Error GoTo ErrorHandler
     
     Dim ws As Worksheet
@@ -212,7 +212,7 @@ Public Function GetChartSaveResult(wkSheet As String, TableName As String, ID As
     Dim i As Integer
     
     Set ws = ThisWorkbook.Worksheets(wkSheet)
-    Set tbl = ws.ListObjects(TableName)
+    Set tbl = ws.ListObjects(tableName)
     
     ' Check columns 3 and 4 for values (User_Entry has priority over Calculated)
     For i = 3 To 4

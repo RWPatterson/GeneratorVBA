@@ -129,7 +129,10 @@ End Sub
 'This cleans up the worksheets so we can place new data.
 'This will also hide empty tabs, which will be revealed when filled.
 Sub DeleteDataTables(TgtCell As String)
-        
+    ' CRITICAL: Clear save data tables first (before change events can trigger)
+    Call ClearUserEntrySaveDataTable("Save_Data", "SaveDataTable")
+    
+    ' Original clearing logic (unchanged)
     If Not IsEmpty(Sheets("HeaderData").Range(TgtCell)) Then
         Sheets("HeaderData").UsedRange.Clear
         Sheets("HeaderData").Visible = xlSheetHidden
@@ -163,7 +166,23 @@ Sub DeleteDataTables(TgtCell As String)
         Sheets("LS_Down_Counts").Range(TgtCell).CurrentRegion.Clear
         Sheets("LS_Down_Counts").Visible = xlSheetHidden
     End If
+End Sub
 
+
+' Generic save data table clearing function
+Private Sub ClearUserEntrySaveDataTable(ws As String, tableName As String)
+    Dim tbl As ListObject
+    
+    On Error Resume Next
+    Set tbl = Worksheets(ws).ListObjects(tableName)
+    On Error GoTo 0
+    
+    If Not tbl Is Nothing Then
+        If tbl.ListRows.count > 0 Then
+            ' Clear User Entry column only
+            tbl.ListColumns("User Entry").DataBodyRange.Clear
+        End If
+    End If
 End Sub
 
 
@@ -174,10 +193,11 @@ Public Sub DisposeData(TgtCell As String)
     Set DataFileMod.TestData = Nothing
 End Sub
 
+
 'This takes in a worksheet and a cell where a table is expected to be found
 'The expectation is that you've written data to the sheet programmatically in a contiguous blob
 'The function will expand the cell reference to the entire range, then convert that range into a named table for data operations.
-Sub CreateTable(ByVal tgtWksheet As String, ByVal TgtCell As String, Optional ByVal TableName As String = "", Optional AvgCalc As Boolean)
+Sub CreateTable(ByVal tgtWksheet As String, ByVal TgtCell As String, Optional ByVal tableName As String = "", Optional AvgCalc As Boolean)
     Dim rng As Range
     Dim tbl As ListObject
     
@@ -185,8 +205,8 @@ Sub CreateTable(ByVal tgtWksheet As String, ByVal TgtCell As String, Optional By
     
     Set tbl = Sheets(tgtWksheet).ListObjects.Add(xlSrcRange, rng, , xlYes)
     
-    If TableName <> "" Then
-        tbl.Name = Replace(TableName, ";", "") ' Use the provided table name but remove semi colon leader
+    If tableName <> "" Then
+        tbl.Name = Replace(tableName, ";", "") ' Use the provided table name but remove semi colon leader
     Else
         tbl.Name = Sheets(tgtWksheet).Name & "Tbl" ' Use the sheet name with "Table" suffix
     End If
@@ -408,12 +428,12 @@ ErrorHandler:
 End Sub
 
 
-Sub GroupTableData(wkSheet As String, TableName As String)
+Sub GroupTableData(wkSheet As String, tableName As String)
     Dim ws As Worksheet
     Dim tbl As ListObject
 
     Set ws = ThisWorkbook.Sheets(wkSheet)
-    Set tbl = ws.ListObjects(TableName)
+    Set tbl = ws.ListObjects(tableName)
 
     ' Group the Data range leaving the headers for viewing
     tbl.DataBodyRange.Rows.Group

@@ -303,15 +303,36 @@ End Sub
 
 ' Set clump pressures - called by module
 Public Sub SetClumpPressures()
-    Dim TerminationDP As Double
     Dim tempC_Pressures() As Double
     Dim i As Integer
+    Dim DPData As Variant
+    Dim TestTimes As Variant
+    Dim targetTime As Double
     
-    TerminationDP = Me.TerminationDP
+    ' Get the actual pressure and time data from the test
+    DPData = DataFileMod.TestData.GetAnalogTagData(Me.TerminationTag)
+    TestTimes = DataFileMod.TestData.Times
+    
+    ' Validate we have the required data
+    If IsEmpty(DPData) Or IsEmpty(TestTimes) Then
+        ' Fallback to percentage calculation if interpolation data unavailable
+        ReDim tempC_Pressures(1 To 10)
+        For i = 1 To 10
+            tempC_Pressures(i) = Me.TerminationDP * (i / 10)
+        Next i
+        Me.C_Pressures = tempC_Pressures
+        Exit Sub
+    End If
+    
     ReDim tempC_Pressures(1 To 10)
     
+    ' Calculate actual pressures at each time interval using interpolation
     For i = 1 To 10
-        tempC_Pressures(i) = GetISO16889Pressure(TerminationDP, i / 10)
+        ' Get the target time for this interval (10%, 20%, etc. of termination time)
+        targetTime = Me.TerminationTime * (i / 10)
+        
+        ' Interpolate the actual pressure at this time point
+        tempC_Pressures(i) = MathMod.FastLinearInterpolation(targetTime, TestTimes, DPData)
     Next i
     
     Me.C_Pressures = tempC_Pressures

@@ -35,7 +35,7 @@ Public Sub SetValue(tableType As String, ID As Long, newValue As Variant, source
     Set ws = Sheets("Save_Data")
     
     ' CRITICAL: Suppress change events during programmatic updates
-    ws.BeginAutomatedUpdate
+    Call SaveDataMod.BeginAutomatedUpdate
     
     On Error GoTo CleanupEvents
     
@@ -65,7 +65,7 @@ Public Sub SetValue(tableType As String, ID As Long, newValue As Variant, source
     
 CleanupEvents:
     ' CRITICAL: Re-enable change events
-    ws.EndAutomatedUpdate
+    Call SaveDataMod.EndAutomatedUpdate
 End Sub
 
 ' Clear value from specific source
@@ -267,3 +267,33 @@ Public Sub ResetDashboardValue(ID As Long)
     Call SetValue("ISO16889", ID, "", DataSource.UserEntry)
 End Sub
 
+'======================================================================
+'================ AUTOMATION CONTROL FUNCTIONS ======================
+'======================================================================
+
+' Control change event suppression for Save_Data worksheet
+Public Sub BeginAutomatedUpdate()
+    ' Call the worksheet method to suppress change events
+    Sheets("Save_Data").BeginAutomatedUpdate
+End Sub
+
+Public Sub EndAutomatedUpdate()
+    ' Re-enable change events
+    Sheets("Save_Data").EndAutomatedUpdate
+End Sub
+
+' Safe wrapper that ensures events are always re-enabled
+Public Sub ExecuteWithSuppressedEvents(ByVal codeToExecute As String)
+    On Error GoTo CleanupEvents
+    
+    Call BeginAutomatedUpdate
+    
+    ' Execute the provided code (this would need to be implemented differently)
+    ' For now, we'll use the direct approach in calling code
+    
+CleanupEvents:
+    Call EndAutomatedUpdate
+    If Err.Number <> 0 Then
+        Err.Raise Err.Number, Err.source, Err.Description
+    End If
+End Sub
