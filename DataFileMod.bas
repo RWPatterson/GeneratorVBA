@@ -55,9 +55,6 @@ Private Function InitializeTestData() As Boolean
     ' Quick validation - single cell read
     TestData.DataExist = (Sheets("RawData").Cells(1, 1).Value = "HEADER")
     
-    ' Note: DeleteDataTables is now handled by CleanupBeforeNewFile
-    ' so we don't call it here anymore
-    
     InitializeTestData = TestData.DataExist
 End Function
 

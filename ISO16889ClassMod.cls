@@ -60,8 +60,13 @@ End Type
 Private analysisCache As analysisCache
 
 Private Sub Class_Initialize()
-    'Initialize cache
+    'Initialize cache as INVALID - force rebuild on first use
     analysisCache.IsValid = False
+    analysisCache.LastTerminationTime = -1    ' Impossible values
+    analysisCache.LastTerminationDP = -1      ' to ensure mismatch
+    analysisCache.LastTerminationFilter = -1
+    
+    Debug.Print "ISO16889ClassMod initialized - cache marked invalid for rebuild"
 End Sub
 
 '======================================================================
@@ -429,14 +434,19 @@ End Sub
 Public Function IsRebuildRequired() As Boolean
     With analysisCache
         If Not .IsValid Then
+            Debug.Print "Rebuild required: Cache is invalid (first run or manually invalidated)"
             IsRebuildRequired = True
         ElseIf .LastTerminationTime <> Me.TerminationTime Then
+            Debug.Print "Rebuild required: Termination time changed from " & .LastTerminationTime & " to " & Me.TerminationTime
             IsRebuildRequired = True
         ElseIf .LastTerminationDP <> Me.TerminationDP Then
+            Debug.Print "Rebuild required: Termination DP changed from " & .LastTerminationDP & " to " & Me.TerminationDP
             IsRebuildRequired = True
         ElseIf .LastTerminationFilter <> Me.TerminationFilter Then
+            Debug.Print "Rebuild required: Termination filter changed from " & .LastTerminationFilter & " to " & Me.TerminationFilter
             IsRebuildRequired = True
         Else
+            Debug.Print "No rebuild required: All parameters match cache"
             IsRebuildRequired = False
         End If
     End With

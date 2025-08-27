@@ -180,7 +180,7 @@ Private Sub ClearUserEntrySaveDataTable(ws As String, tableName As String)
     If Not tbl Is Nothing Then
         If tbl.ListRows.count > 0 Then
             ' Clear User Entry column only
-            tbl.ListColumns("User Entry").DataBodyRange.Clear
+            tbl.ListColumns("User Entry").DataBodyRange.ClearContents
         End If
     End If
 End Sub

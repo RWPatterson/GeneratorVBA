@@ -219,56 +219,77 @@ Private Sub HandleReportValueDirectEdit(ID As Long, newValue As Variant, isISO16
 End Sub
 
 ' Validation functions with informative messages
-Private Sub ValidateAndApplyDPOverride(newDP As Double)
+Private Sub ValidateAndApplyDPOverride(newDP As Variant)
+    ' Add type checking to prevent mismatch errors
+    If Not IsNumeric(newDP) Then
+        Debug.Print "DP override is not numeric: " & newDP
+        Exit Sub
+    End If
+    
     If ISO16889Mod.ISO16889ReportData Is Nothing Then Exit Sub
+    
+    Dim dpValue As Double
+    dpValue = CDbl(newDP)
     
     Dim actualTerminationDP As Double
     actualTerminationDP = ISO16889Mod.ISO16889ReportData.GetActualTerminationDP()
     
-    If ISO16889Mod.ISO16889ReportData.IsValidDPOverride(newDP) Then
+    If ISO16889Mod.ISO16889ReportData.IsValidDPOverride(dpValue) Then
         ' Mark for rebuild
         Call ISO16889Mod.ISO16889ReportData.InvalidateCache
         ' Could trigger automatic rebuild or show rebuild prompt
         Call PromptForISO16889Rebuild("DP override")
     Else
-        MsgBox "Invalid DP override: " & newDP & vbCrLf & vbCrLf & _
+        MsgBox "Invalid DP override: " & dpValue & vbCrLf & vbCrLf & _
                "Maximum allowed value: " & actualTerminationDP & vbCrLf & _
                "You can only trim data to a lower termination point, not extrapolate beyond the actual test termination.", _
                vbExclamation, "DP Override Validation"
     End If
 End Sub
 
-Private Sub ValidateAndApplyFilterOverride(newFilter As Integer)
+Private Sub ValidateAndApplyFilterOverride(newFilter As Variant)
+    ' Add type checking to prevent mismatch errors
+    If Not IsNumeric(newFilter) Then
+        Debug.Print "Filter override is not numeric: " & newFilter
+        Exit Sub
+    End If
+    
     If ISO16889Mod.ISO16889ReportData Is Nothing Then Exit Sub
     
-    If ISO16889Mod.ISO16889ReportData.IsValidFilterChoice(newFilter) Then
+    Dim filterValue As Integer
+    filterValue = CInt(newFilter)
+    
+    If ISO16889Mod.ISO16889ReportData.IsValidFilterChoice(filterValue) Then
         Call ISO16889Mod.ISO16889ReportData.InvalidateCache
         Call PromptForISO16889Rebuild("filter selection")
     Else
         Dim availableFilters As String
         availableFilters = ISO16889Mod.ISO16889ReportData.GetAvailableFilterOptions()
         
-        MsgBox "Invalid filter selection: Filter " & newFilter & vbCrLf & vbCrLf & _
+        MsgBox "Invalid filter selection: Filter " & filterValue & vbCrLf & vbCrLf & _
                "Available filters: " & availableFilters & vbCrLf & _
-               "Filter " & newFilter & " data is not available in this test file.", _
+               "Filter " & filterValue & " data is not available in this test file.", _
                vbExclamation, "Filter Selection Validation"
     End If
 End Sub
 
-Private Sub ValidateAndApplySensorOverride(newSensor As String)
+Private Sub ValidateAndApplySensorOverride(newSensor As Variant)
+    ' Convert to string safely
+    Dim sensorValue As String
+    sensorValue = CStr(newSensor)
+    
     If ISO16889Mod.ISO16889ReportData Is Nothing Then Exit Sub
     
-    If ISO16889Mod.ISO16889ReportData.IsValidSensorChoice(newSensor) Then
+    If ISO16889Mod.ISO16889ReportData.IsValidSensorChoice(sensorValue) Then
         ' Sensor changes don't require rebuild, just display update
-        ' DON'T update the class directly - let the user intervention system handle it
-        Call PromptForSensorChange(newSensor)
+        Call PromptForSensorChange(sensorValue)
     Else
         Dim availableSensors As String
         availableSensors = ISO16889Mod.ISO16889ReportData.GetAvailableSensorOptions()
         
-        MsgBox "Invalid sensor selection: " & newSensor & vbCrLf & vbCrLf & _
+        MsgBox "Invalid sensor selection: " & sensorValue & vbCrLf & vbCrLf & _
                "Available sensors: " & availableSensors & vbCrLf & _
-               newSensor & " sensor data is not available in this test file.", _
+               sensorValue & " sensor data is not available in this test file.", _
                vbExclamation, "Sensor Selection Validation"
     End If
 End Sub

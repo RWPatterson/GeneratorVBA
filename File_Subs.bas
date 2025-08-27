@@ -32,7 +32,6 @@ Function OpenDataFile(Optional Extension As String = "dat", Optional wkSheet As 
     If FileToOpen <> False Then
         ' Set the worksheet where data needs to be loaded
         Set dataSheet = ThisWorkbook.Sheets(wkSheet)
-        ' Note: Clearing is now handled by CleanupBeforeNewFile
 
         ' Open the file and get the dataSet
         tempArray = OpenTextAndGetData(FileToOpen)

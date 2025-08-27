@@ -26,18 +26,22 @@ Public Sub SetupISO16889ClassModule()
             GoTo CleanExit
         End If
         
-        ' Initialize with default (actual) termination values
+        ' STEP 1: Analyze the data file and determine actual termination values
+        ' This populates the class properties AND records baseline values
         If Not InitializeDefaultTermination() Then
             MsgBox "Critical Error: Unable to determine test termination parameters." & vbCrLf & _
                    "This file may be corrupted or incomplete.", vbCritical
             GoTo CleanExit
         End If
         
-        ' Apply any user overrides from SaveData table
+        ' STEP 2: Apply any valid user overrides (optional - only if they exist and are valid)
         Call ApplyUserInterventions
         
-        ' Generate analysis based on final settings
+        ' STEP 3: Generate analysis tables based on final settings (actual + any overrides)
         Call GenerateISO16889Analysis
+        
+    Else
+        MsgBox "No valid test data found. Please load a valid .DAT file first.", vbExclamation
     End If
     
 CleanExit:
@@ -48,7 +52,6 @@ CleanExit:
     End If
 End Sub
 
-' Enhanced initialization with failure detection - calls class methods
 Private Function InitializeDefaultTermination() As Boolean
     DevToolsMod.TimerStartCount
     
@@ -56,17 +59,26 @@ Private Function InitializeDefaultTermination() As Boolean
     
     On Error GoTo InitError
     
-    'Test what kind of test is being operated on - use class method
+    ' STEP 1: Determine test type and set RetainedMassValid flag
     If Not ISO16889ReportData.EvaluateByTestType() Then
+        Debug.Print "ERROR: EvaluateByTestType failed"
         GoTo InitError
     End If
     
-    'Determine based on the test details what sensors to report from by default - use class method
+    ' STEP 2: Analyze the data to determine which filter achieved termination first
+    ' This is the core logic that was missing - we need to determine termination from DATA, not user input
+    If Not DetermineActualTerminationFromData() Then
+        Debug.Print "ERROR: Could not determine actual termination from data"
+        GoTo InitError
+    End If
+    
+    ' STEP 3: Determine sensor selection based on test configuration and termination filter
     If Not ISO16889ReportData.EvaluateSelectedSensors() Then
+        Debug.Print "ERROR: EvaluateSelectedSensors failed"
         GoTo InitError
     End If
     
-    ' Validate termination parameters were set correctly
+    ' STEP 4: Validate that we got valid termination parameters
     If ISO16889ReportData.TerminationTime <= 0 Then
         MsgBox "Unable to determine test termination time." & vbCrLf & _
                "Check that pressure data and termination setpoints are valid.", vbCritical
@@ -79,6 +91,9 @@ Private Function InitializeDefaultTermination() As Boolean
         GoTo InitError
     End If
     
+    ' STEP 5: Record these as the baseline "From Data" values (before any user overrides)
+    Call RecordBaselineValues
+    
     ' Update class cache
     Call ISO16889ReportData.UpdateCache
     
@@ -90,6 +105,51 @@ InitError:
     DevToolsMod.TimerEndCount "Default Termination Initialization (FAILED)"
     InitializeDefaultTermination = False
 End Function
+
+' NEW FUNCTION: Analyze the actual data to determine termination values
+Private Function DetermineActualTerminationFromData() As Boolean
+    DetermineActualTerminationFromData = False
+     
+    ' This calls your existing class method that analyzes the pressure data
+    ' and determines which filter hit the terminal DP first
+    If Not ISO16889ReportData.SetISO16889DiffPressTag() Then
+        Debug.Print "ERROR: SetISO16889DiffPressTag failed"
+        Exit Function
+    End If
+    
+    ' Log what we determined from the data
+    Debug.Print "Actual termination determined from data:"
+    Debug.Print "  - Tag: " & ISO16889ReportData.TerminationTag
+    Debug.Print "  - DP: " & ISO16889ReportData.TerminationDP
+    Debug.Print "  - Time: " & ISO16889ReportData.TerminationTime
+    Debug.Print "  - Filter: " & ISO16889ReportData.TerminationFilter
+    
+    DetermineActualTerminationFromData = True
+End Function
+
+' NEW FUNCTION: Record the baseline values in the From Data column
+Private Sub RecordBaselineValues()
+    ' Use the SaveDataMod to suppress change events
+    Call SaveDataMod.BeginAutomatedUpdate
+    
+    On Error GoTo CleanupEvents
+    
+    ' Record the actual values determined from data analysis
+    ' These go in the "From Data" column and serve as the baseline
+    Call SetISO16889DataEntry(1, ISO16889ReportData.TerminationTag)        ' Termination Tag
+    Call SetISO16889DataEntry(2, ISO16889ReportData.TerminationDP)         ' Termination DP
+    Call SetISO16889DataEntry(3, ISO16889ReportData.TerminationTime)       ' Termination Time
+    Call SetISO16889DataEntry(4, ISO16889ReportData.RetainedMassValid)     ' RetainedMassValid
+    Call SetISO16889DataEntry(7, ISO16889ReportData.TerminationFilter)     ' Selected Filter
+    Call SetISO16889DataEntry(8, ISO16889ReportData.TerminationSizePhrase) ' Selected Sensor
+    
+    
+    
+    Debug.Print "Baseline values recorded in From Data column"
+    
+CleanupEvents:
+    Call SaveDataMod.EndAutomatedUpdate
+End Sub
 
 ' Apply user interventions from SaveData table
 Private Sub ApplyUserInterventions()
@@ -149,26 +209,33 @@ Private Sub GenerateISO16889Analysis()
     
     ' Check if rebuild is needed using class method
     If Not ISO16889ReportData.IsRebuildRequired() Then
+        Debug.Print "Using cached analysis - no rebuild needed"
         DevToolsMod.TimerEndCount "ISO16889 Analysis (cached)"
         Exit Sub
     End If
+    
+    Debug.Print "Rebuilding ISO16889 analysis..."
     
     ' Calculate clump arrays based on (possibly modified) termination - use class methods
     Call ISO16889ReportData.SetClumpTimes
     Call ISO16889ReportData.SetClumpPressures
     
-    'Clear the 16889 Data Tab
+    ' Clear the 16889 Data Tab
+    Debug.Print "Clearing ISO16889Data sheet..."
     Sheets("ISO16889Data").UsedRange.Clear
     
-    'Generate all sensor tables
+    ' Generate all sensor tables
+    Debug.Print "Generating ISO16889 tables..."
     Call FillISO16889Tables(DataFileMod.TestData, ISO16889ReportData)
     
-    'Record save values to the ISOSaveData table
+    ' Record final values to the ISOSaveData table (this updates the "From Data" column)
+    Debug.Print "Recording final save data..."
     Call FillISO16889SaveData
     
     ' Update class cache
     Call ISO16889ReportData.UpdateCache
     
+    Debug.Print "Analysis rebuild completed"
     DevToolsMod.TimerEndCount "ISO16889 Analysis (rebuilt)"
 End Sub
 
@@ -654,7 +721,7 @@ ErrorHandler:
     ' Silent error handling
 End Sub
 
-Public Sub SetISO16889DataEntry(ID As Integer, SaveValue As String)
+Public Sub SetISO16889DefaultEntry(ID As Integer, SaveValue As String)
     Dim ws As Worksheet
     Dim tbl As ListObject
     
@@ -664,6 +731,22 @@ Public Sub SetISO16889DataEntry(ID As Integer, SaveValue As String)
     Set tbl = ws.ListObjects("ISO16889SaveDataTable")
     
     tbl.DataBodyRange(ID, 5).Value = SaveValue
+    Exit Sub
+
+ErrorHandler:
+    ' Silent error handling
+End Sub
+
+Public Sub SetISO16889DataEntry(ID As Integer, SaveValue As String)
+    Dim ws As Worksheet
+    Dim tbl As ListObject
+    
+    On Error GoTo ErrorHandler
+    
+    Set ws = ThisWorkbook.Worksheets("Save_Data")
+    Set tbl = ws.ListObjects("ISO16889SaveDataTable")
+    
+    tbl.DataBodyRange(ID, 6).Value = SaveValue
     Exit Sub
 
 ErrorHandler:
@@ -893,11 +976,11 @@ End Sub
 Private Sub ClearFromDataEntries()
     On Error Resume Next
     
-    ' Clear SaveDataTable "From Data" entries (column 5)
-    Call ClearDirectWritesInColumn("SaveDataTable", 5)
+    ' Clear SaveDataTable "From Data" entries (column 6)
+    Call ClearDirectWritesInColumn("SaveDataTable", 6)
     
-    ' Clear ISO16889SaveDataTable "From Data" entries (column 5)
-    Call ClearDirectWritesInColumn("ISO16889SaveDataTable", 5)
+    ' Clear ISO16889SaveDataTable "From Data" entries (column 6)
+    Call ClearDirectWritesInColumn("ISO16889SaveDataTable", 6)
     
     On Error GoTo 0
 End Sub
@@ -978,8 +1061,8 @@ Public Sub VerifyCleanup()
     
     On Error Resume Next
     Dim count1 As Long, count2 As Long
-    count1 = CountNonFormulaEntries("SaveDataTable", 5)
-    count2 = CountNonFormulaEntries("ISO16889SaveDataTable", 5)
+    count1 = CountNonFormulaEntries("SaveDataTable", 6)
+    count2 = CountNonFormulaEntries("ISO16889SaveDataTable", 6)
     Debug.Print "SaveDataTable non-formula entries: " & count1
     Debug.Print "ISO16889SaveDataTable non-formula entries: " & count2
     On Error GoTo 0

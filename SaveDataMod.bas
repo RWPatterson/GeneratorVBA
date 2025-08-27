@@ -48,11 +48,11 @@ Public Sub SetValue(tableType As String, ID As Long, newValue As Variant, source
     ' Determine target column based on source
     Select Case source
         Case DataSource.FromData
-            targetColumn = 5 ' From Data column
+            targetColumn = 6 ' From Data column
         Case DataSource.CustomDefault
-            targetColumn = 4 ' Custom Default column
+            targetColumn = 5 ' Custom Default column
         Case DataSource.UserEntry
-            targetColumn = 3 ' User Entry column
+            targetColumn = 4 ' User Entry column
     End Select
     
     ' Set the value
@@ -89,11 +89,11 @@ Public Function GetSourceValue(tableType As String, ID As Long, source As DataSo
     
     Select Case source
         Case DataSource.FromData
-            sourceColumn = 5
+            sourceColumn = 6
         Case DataSource.CustomDefault
-            sourceColumn = 4
+            sourceColumn = 5
         Case DataSource.UserEntry
-            sourceColumn = 3
+            sourceColumn = 4
     End Select
     
     GetSourceValue = tbl.DataBodyRange(ID, sourceColumn).Value

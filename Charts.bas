@@ -1,8 +1,6 @@
 Attribute VB_Name = "Charts"
 Option Explicit
 
-' Note: OptimizePerformance is now centralized in DevToolsMod module
-
 '----------------------------------------------------------------------------------------
 ' FormatChart - Optimized version with improved error handling and performance
 '----------------------------------------------------------------------------------------
