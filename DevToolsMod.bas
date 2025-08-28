@@ -26,3 +26,5 @@ Public Sub OptimizePerformance(enable As Boolean)
         Application.EnableEvents = True
     End If
 End Sub
+
+

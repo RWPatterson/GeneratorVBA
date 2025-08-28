@@ -34,6 +34,13 @@ ErrorHandler:
     
 End Function
 
+' Helper function to check if worksheet exists
+Public Function WorksheetExists(wsName As String) As Boolean
+    On Error Resume Next
+    WorksheetExists = (Sheets(wsName).Name = wsName)
+    On Error GoTo 0
+End Function
+
 ''This sub returns the value of a field from the Save_Data table.
 ''The Save_Data table has an ID, a Display Name, a User Entry, a Custom Default, and a From Data column
 ''The priority of return is:
@@ -41,35 +48,6 @@ End Function
 '    'Custom_Default fallback
 '    'From_RawDat last.
 '    'if no value is present in all 3 columns, return 0.
-'
-'Public Function GetSaveResult(ID As Integer) As String
-'    Dim ws As Worksheet
-'    Dim tbl As ListObject
-'    Dim i As Integer
-'
-'    Application.Volatile
-'    On Error GoTo ErrorHandler
-'
-'    Set ws = ThisWorkbook.Worksheets("Save_Data") 'This function is hardcoded to use the Save_Data Sheet.
-'    Set tbl = ws.ListObjects("SaveDataTable") 'The SaveDataTable is always present in the workbook.
-'
-'        For i = 3 To 5
-'        If Not IsEmpty(tbl.DataBodyRange(ID, i).value) Then
-'            GetSaveResult = tbl.DataBodyRange(ID, i).value
-'            Exit For
-'        End If
-'        Next i
-'
-'ExitFunction:
-'    Exit Function
-'
-'ErrorHandler:
-'    GetSaveResult = "0"
-'    Resume ExitFunction
-'End Function
-
-'The previous GetSaveResult sub was volatile and had problems because it obscures the dependencies used in Excel, recalculating the entire workbook on each call.
-
 Public Function GetSaveResult(ID As Long) As Variant
     Dim ws As Worksheet
     Dim tbl As ListObject

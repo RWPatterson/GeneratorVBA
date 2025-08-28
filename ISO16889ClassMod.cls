@@ -474,17 +474,149 @@ Public Sub MarkTablesAsBuilt()
 End Sub
 
 Public Sub CalculateBetaSizes()
-    ' Only calculate if we have sensor data
-    If Me.TerminationSizePhrase = "" Then Exit Sub
+    DevToolsMod.TimerStartCount
     
-    ' Use the single, consistent function for all calculations
+    ' Only calculate if we have sensor data and valid beta arrays
+    If Me.TerminationSizePhrase = "" Then
+        Debug.Print "No sensor selected - skipping beta size calculations"
+        Exit Sub
+    End If
+    
+    ' Validate that beta arrays are populated
+    Dim betaArray As Variant
+    Select Case Me.TerminationSizePhrase
+        Case "LS"
+            betaArray = Me.Beta_LS
+        Case "LBE"
+            betaArray = Me.Beta_LBE
+        Case Else
+            betaArray = Me.Beta_LB
+    End Select
+    
+    If IsEmpty(betaArray) Then
+        Debug.Print "Beta array is empty - cannot calculate beta sizes"
+        Exit Sub
+    End If
+    
+    ' Calculate sizes for standard beta ratios using existing function
+    On Error GoTo CalculationError
+    
     Me.ISO16889SizeAtBeta2 = GetISO16889SizeGivenBeta(2)
     Me.ISO16889SizeAtBeta10 = GetISO16889SizeGivenBeta(10)
     Me.ISO16889SizeAtBeta75 = GetISO16889SizeGivenBeta(75)
     Me.ISO16889SizeAtBeta100 = GetISO16889SizeGivenBeta(100)
     Me.ISO16889SizeAtBeta200 = GetISO16889SizeGivenBeta(200)
     Me.ISO16889SizeAtBeta1000 = GetISO16889SizeGivenBeta(1000)
+    
+    Debug.Print "Beta size calculations completed:"
+    Debug.Print "  ß=2: " & Me.ISO16889SizeAtBeta2
+    Debug.Print "  ß=10: " & Me.ISO16889SizeAtBeta10
+    Debug.Print "  ß=75: " & Me.ISO16889SizeAtBeta75
+    Debug.Print "  ß=100: " & Me.ISO16889SizeAtBeta100
+    Debug.Print "  ß=200: " & Me.ISO16889SizeAtBeta200
+    Debug.Print "  ß=1000: " & Me.ISO16889SizeAtBeta1000
+    
+    DevToolsMod.TimerEndCount "Beta Size Calculations"
+    Exit Sub
+    
+CalculationError:
+    Debug.Print "Error calculating beta sizes: " & Err.Description
+    ' Set default values on error
+    Me.ISO16889SizeAtBeta2 = ""
+    Me.ISO16889SizeAtBeta10 = ""
+    Me.ISO16889SizeAtBeta75 = ""
+    Me.ISO16889SizeAtBeta100 = ""
+    Me.ISO16889SizeAtBeta200 = ""
+    Me.ISO16889SizeAtBeta1000 = ""
 End Sub
+
+'Returns the beta from the selected sensors according to the named range calculation.
+Function GetISO16889SizeGivenBeta(Beta As Double) As String
+    Dim sizes As Variant
+    Dim betaArray As Variant
+    Dim avgBetas() As Double
+    Dim i As Long, j As Long
+    Dim sum As Double, count As Long
+    Dim resultSize As Double
+    
+    On Error GoTo ErrorHandler
+    
+    ' Get data directly from class object based on selected sensor
+    Select Case ISO16889ReportData.TerminationSizePhrase
+        Case "LS"
+            sizes = DataFileMod.TestData.LS_Sizes
+            betaArray = ISO16889ReportData.Beta_LS
+        Case "LBE"
+            sizes = DataFileMod.TestData.LBE_Sizes
+            betaArray = ISO16889ReportData.Beta_LBE
+        Case Else
+            sizes = DataFileMod.TestData.LB_Sizes
+            betaArray = ISO16889ReportData.Beta_LB
+    End Select
+    
+    ' Validate we have data
+    If IsEmpty(sizes) Or IsEmpty(betaArray) Then
+        GetISO16889SizeGivenBeta = ""
+        Exit Function
+    End If
+    
+    ' Calculate average beta for each size across all 10 time intervals
+    ReDim avgBetas(1 To UBound(sizes))
+    
+    For i = 1 To UBound(sizes)
+        sum = 0: count = 0
+        For j = 1 To 10
+            If IsNumeric(betaArray(j, i)) And betaArray(j, i) > 0 And betaArray(j, i) < 100000 Then
+                sum = sum + betaArray(j, i)
+                count = count + 1
+            End If
+        Next j
+        avgBetas(i) = IIf(count > 0, sum / count, 0)
+    Next i
+    
+    ' Check for statistical artifacts (larger sizes having lower betas than smaller sizes)
+    For i = 2 To UBound(avgBetas)
+        If avgBetas(i) > 0 And avgBetas(i - 1) > 0 Then
+            If avgBetas(i) < avgBetas(i - 1) Then
+                ' Statistical artifact detected - return blank
+                GetISO16889SizeGivenBeta = ""
+                Exit Function
+            End If
+        End If
+    Next i
+    
+    ' Find the appropriate size range for interpolation
+    If avgBetas(1) > Beta Then
+        ' Beta is higher than smallest size can achieve
+        GetISO16889SizeGivenBeta = "<" & Format(sizes(1), "#0.0")
+        Exit Function
+    End If
+    
+    ' Check if beta is lower than what any size can achieve
+    If avgBetas(UBound(avgBetas)) < Beta Then
+        ' Beta is lower than largest size - extrapolate or cap
+        GetISO16889SizeGivenBeta = ">" & Format(sizes(UBound(sizes)), "#0.0")
+        Exit Function
+    End If
+    
+    ' Find bracketing values for interpolation
+    For i = 1 To UBound(avgBetas) - 1
+        If avgBetas(i) <= Beta And avgBetas(i + 1) >= Beta Then
+            ' Linear interpolation between sizes
+            resultSize = MathMod.LinearInterpolation(Beta, avgBetas(i), avgBetas(i + 1), sizes(i), sizes(i + 1))
+            GetISO16889SizeGivenBeta = Format(resultSize, "#0.0")
+            Exit Function
+        End If
+    Next i
+    
+    ' Fallback - should not reach here with valid data
+    GetISO16889SizeGivenBeta = ""
+    Exit Function
+    
+ErrorHandler:
+    GetISO16889SizeGivenBeta = ""
+    Debug.Print "Error in GetISO16889SizeGivenBeta: " & Err.Description
+End Function
 
 '======================================================================
 '================ PRIVATE HELPER METHODS ============================
