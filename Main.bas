@@ -192,9 +192,9 @@ Public Sub ToggleParticleCounter()
     
     Select Case currentCounter
         Case "LB"
-            If HasData(TestData.LS_Sizes) Then
+            If hasData(TestData.LS_Sizes) Then
                 altCounter = "LS"
-            ElseIf HasData(TestData.LBE_Sizes) Then
+            ElseIf hasData(TestData.LBE_Sizes) Then
                 altCounter = "LBE"
             Else
                 MsgBox "No alternate particle counter data available."

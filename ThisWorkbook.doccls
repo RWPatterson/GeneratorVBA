@@ -1,5 +1,5 @@
 ﻿Option Explicit
 
-Public Sub Workbook_Open()
+Private Sub Workbook_Open()
     Call Main.GenerateReport
 End Sub

@@ -142,17 +142,17 @@ End Sub
 
 
 ' Helper function to check if a Variant array variable has data
-Public Function HasData(arr As Variant) As Boolean
+Public Function hasData(arr As Variant) As Boolean
     On Error GoTo NoData
     If IsArray(arr) Then
-        HasData = (UBound(arr) >= LBound(arr))
+        hasData = (UBound(arr) >= LBound(arr))
     Else
-        HasData = False
+        hasData = False
     End If
     Exit Function
     
 NoData:
-    HasData = False
+    hasData = False
 End Function
 
     

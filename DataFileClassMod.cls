@@ -39,7 +39,7 @@ Public AnalogTags As Variant 'All Analog Channel Tags
 Public CycleAnalogTags As Variant 'All Cyclic Analog Channel Tags
 Public Times As Variant 'Times column for each record
 Public CycleTimes As Variant 'Cycle times column
-Public Sizes As Variant 'All LB sizes for a 3 row sort
+Public sizes As Variant 'All LB sizes for a 3 row sort
 Public LB_Sizes As Variant 'All LB sizes for a 5 row sort
 Public LBE_Sizes As Variant 'Second LB set sizes for 2023-033.
 Public LS_Sizes As Variant 'All LS sizes

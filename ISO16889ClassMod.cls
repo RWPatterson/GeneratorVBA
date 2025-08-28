@@ -55,18 +55,15 @@ Private Type analysisCache
     LastTerminationTime As Double
     LastTerminationDP As Double
     LastTerminationFilter As Integer
+    TablesBuilt As Boolean
     IsValid As Boolean
 End Type
 Private analysisCache As analysisCache
 
 Private Sub Class_Initialize()
-    'Initialize cache as INVALID - force rebuild on first use
+    'Initialize cache
     analysisCache.IsValid = False
-    analysisCache.LastTerminationTime = -1    ' Impossible values
-    analysisCache.LastTerminationDP = -1      ' to ensure mismatch
-    analysisCache.LastTerminationFilter = -1
-    
-    Debug.Print "ISO16889ClassMod initialized - cache marked invalid for rebuild"
+    analysisCache.TablesBuilt = False    ' NEW: Initialize tables built flag
 End Sub
 
 '======================================================================
@@ -165,9 +162,9 @@ Public Function EvaluateSelectedSensors() As Boolean
     Dim hasAnyCountData As Boolean
     
     ' Check if any particle count data exists
-    hasAnyCountData = (HasData(DataFileMod.TestData.LB_Sizes) Or _
-                      HasData(DataFileMod.TestData.LS_Sizes) Or _
-                      HasData(DataFileMod.TestData.LBE_Sizes))
+    hasAnyCountData = (hasData(DataFileMod.TestData.LB_Sizes) Or _
+                      hasData(DataFileMod.TestData.LS_Sizes) Or _
+                      hasData(DataFileMod.TestData.LBE_Sizes))
     
     If Not hasAnyCountData Then
         MsgBox "No particle size data found for any sensor type." & vbCrLf & _
@@ -180,16 +177,16 @@ Public Function EvaluateSelectedSensors() As Boolean
     
     If ExRaDs Then
         If TermFilter > 1 Then
-            If HasData(DataFileMod.TestData.LS_Sizes) Then
+            If hasData(DataFileMod.TestData.LS_Sizes) Then
                 Me.TerminationSizePhrase = "LS"
-            ElseIf HasData(DataFileMod.TestData.LBE_Sizes) Then
+            ElseIf hasData(DataFileMod.TestData.LBE_Sizes) Then
                 Me.TerminationSizePhrase = "LBE"
             Else
                 MsgBox "ExRaDs system with Filter 2 termination requires LS or LBE sensor data.", vbCritical
                 Exit Function
             End If
         Else
-            If HasData(DataFileMod.TestData.LB_Sizes) Then
+            If hasData(DataFileMod.TestData.LB_Sizes) Then
                 Me.TerminationSizePhrase = "LB"
             Else
                 MsgBox "LB sensor data required but not found.", vbCritical
@@ -198,7 +195,7 @@ Public Function EvaluateSelectedSensors() As Boolean
         End If
     Else
         ' Non-ExRaDs system - use default sensor
-        If HasData(DataFileMod.TestData.LB_Sizes) Then
+        If hasData(DataFileMod.TestData.LB_Sizes) Then
             Me.TerminationSizePhrase = ""
         Else
             MsgBox "Standard system requires LB sensor data.", vbCritical
@@ -359,15 +356,15 @@ End Function
 Public Function GetAvailableSensorOptions() As String
     Dim options As String
     
-    If HasData(DataFileMod.TestData.LB_Sizes) Then
+    If hasData(DataFileMod.TestData.LB_Sizes) Then
         options = "LB"
     End If
     
-    If HasData(DataFileMod.TestData.LS_Sizes) Then
+    If hasData(DataFileMod.TestData.LS_Sizes) Then
         If options <> "" Then options = options & ",LS" Else options = "LS"
     End If
     
-    If HasData(DataFileMod.TestData.LBE_Sizes) Then
+    If hasData(DataFileMod.TestData.LBE_Sizes) Then
         If options <> "" Then options = options & ",LBE" Else options = "LBE"
     End If
     
@@ -401,11 +398,11 @@ End Function
 Public Function IsValidSensorChoice(sensorType As String) As Boolean
     Select Case UCase(sensorType)
         Case "LB"
-            IsValidSensorChoice = HasData(DataFileMod.TestData.LB_Sizes)
+            IsValidSensorChoice = hasData(DataFileMod.TestData.LB_Sizes)
         Case "LS"
-            IsValidSensorChoice = HasData(DataFileMod.TestData.LS_Sizes)
+            IsValidSensorChoice = hasData(DataFileMod.TestData.LS_Sizes)
         Case "LBE"
-            IsValidSensorChoice = HasData(DataFileMod.TestData.LBE_Sizes)
+            IsValidSensorChoice = hasData(DataFileMod.TestData.LBE_Sizes)
         Case Else
             IsValidSensorChoice = False
     End Select
@@ -434,20 +431,23 @@ End Sub
 Public Function IsRebuildRequired() As Boolean
     With analysisCache
         If Not .IsValid Then
-            Debug.Print "Rebuild required: Cache is invalid (first run or manually invalidated)"
             IsRebuildRequired = True
+            Debug.Print "Cache invalid - rebuild required"
+        ElseIf Not .TablesBuilt Then
+            IsRebuildRequired = True
+            Debug.Print "No tables built - rebuild required"
         ElseIf .LastTerminationTime <> Me.TerminationTime Then
-            Debug.Print "Rebuild required: Termination time changed from " & .LastTerminationTime & " to " & Me.TerminationTime
             IsRebuildRequired = True
+            Debug.Print "Termination time changed - rebuild required"
         ElseIf .LastTerminationDP <> Me.TerminationDP Then
-            Debug.Print "Rebuild required: Termination DP changed from " & .LastTerminationDP & " to " & Me.TerminationDP
             IsRebuildRequired = True
+            Debug.Print "Termination DP changed - rebuild required"
         ElseIf .LastTerminationFilter <> Me.TerminationFilter Then
-            Debug.Print "Rebuild required: Termination filter changed from " & .LastTerminationFilter & " to " & Me.TerminationFilter
             IsRebuildRequired = True
+            Debug.Print "Termination filter changed - rebuild required"
         Else
-            Debug.Print "No rebuild required: All parameters match cache"
             IsRebuildRequired = False
+            Debug.Print "Cache valid - no rebuild needed"
         End If
     End With
 End Function
@@ -457,12 +457,33 @@ Public Sub UpdateCache()
         .LastTerminationTime = Me.TerminationTime
         .LastTerminationDP = Me.TerminationDP
         .LastTerminationFilter = Me.TerminationFilter
+        .TablesBuilt = True
         .IsValid = True
     End With
+    Debug.Print "Cache updated - tables marked as built"
 End Sub
 
 Public Sub InvalidateCache()
     analysisCache.IsValid = False
+    analysisCache.TablesBuilt = False    ' NEW: Mark tables as not built
+    Debug.Print "Cache invalidated - tables marked as not built"
+End Sub
+
+Public Sub MarkTablesAsBuilt()
+    analysisCache.TablesBuilt = True
+End Sub
+
+Public Sub CalculateBetaSizes()
+    ' Only calculate if we have sensor data
+    If Me.TerminationSizePhrase = "" Then Exit Sub
+    
+    ' Use the single, consistent function for all calculations
+    Me.ISO16889SizeAtBeta2 = GetISO16889SizeGivenBeta(2)
+    Me.ISO16889SizeAtBeta10 = GetISO16889SizeGivenBeta(10)
+    Me.ISO16889SizeAtBeta75 = GetISO16889SizeGivenBeta(75)
+    Me.ISO16889SizeAtBeta100 = GetISO16889SizeGivenBeta(100)
+    Me.ISO16889SizeAtBeta200 = GetISO16889SizeGivenBeta(200)
+    Me.ISO16889SizeAtBeta1000 = GetISO16889SizeGivenBeta(1000)
 End Sub
 
 '======================================================================

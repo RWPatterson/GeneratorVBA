@@ -287,7 +287,7 @@ Private Sub ExtractAllTagArrays()
     
     ' Process Sizes
     result = ExtractTagArray(";Particle", "Sizes", wsCache.Name)
-    If Not IsEmpty(result) Then TestData.Sizes = result
+    If Not IsEmpty(result) Then TestData.sizes = result
     
     ' Process LB_Sizes
     result = ExtractTagArray(";Particle", "LBSizes", wsCache.Name)
@@ -366,7 +366,7 @@ Private Sub Process3RowData()
     
     Dim analogCols As Long, pcCols As Long
     analogCols = UBound(TestData.AnalogTags) + 1
-    pcCols = UBound(TestData.Sizes) + 1
+    pcCols = UBound(TestData.sizes) + 1
     
     ' Single massive read operation
     Dim totalRows As Long
@@ -402,7 +402,7 @@ Private Sub Process3RowData()
     TestData.analogData = analogData
     TestData.LBU_CountsData = lbuData
     TestData.LBD_CountsData = lbdData
-    TestData.LB_Sizes = TestData.Sizes
+    TestData.LB_Sizes = TestData.sizes
     TestData.DataRowCount = wsCache.rowCount
 End Sub
 
@@ -674,3 +674,46 @@ Private Function ConvertToArray(rangeValue As Variant) As Variant
         ConvertToArray = result
     End If
 End Function
+
+Public Sub DebugNamedRanges()
+    Debug.Print "=== NAMED RANGE INVESTIGATION ==="
+    
+    On Error Resume Next
+    
+    ' Check Selected_Sensor_Sizes
+    Dim range1 As Range
+    Set range1 = ThisWorkbook.Names("Selected_Sensor_Sizes").RefersToRange
+    If Err.Number = 0 And Not range1 Is Nothing Then
+        Debug.Print "Selected_Sensor_Sizes: " & range1.Address & " on " & range1.Worksheet.Name
+        Debug.Print "Has values: " & (Not IsEmpty(range1.Value))
+    Else
+        Debug.Print "ERROR: Selected_Sensor_Sizes not found or invalid: " & Err.Description
+        Err.Clear
+    End If
+    
+    ' Check Selected16889BetasAverages
+    Dim range2 As Range
+    Set range2 = ThisWorkbook.Names("Selected16889BetasAverages").RefersToRange
+    If Err.Number = 0 And Not range2 Is Nothing Then
+        Debug.Print "Selected16889BetasAverages: " & range2.Address & " on " & range2.Worksheet.Name
+        Debug.Print "Has values: " & (Not IsEmpty(range2.Value))
+    Else
+        Debug.Print "ERROR: Selected16889BetasAverages not found or invalid: " & Err.Description
+        Err.Clear
+    End If
+    
+    ' Check if ISO16889Data sheet has tables
+    Dim ws As Worksheet
+    Set ws = Sheets("ISO16889Data")
+    Debug.Print "ISO16889Data sheet has " & ws.ListObjects.count & " tables"
+    
+    If ws.ListObjects.count > 0 Then
+        Dim tbl As ListObject
+        For Each tbl In ws.ListObjects
+            Debug.Print "Table: " & tbl.Name & " with " & tbl.DataBodyRange.Rows.count & " data rows"
+        Next tbl
+    End If
+    
+    On Error GoTo 0
+    Debug.Print "=== END NAMED RANGE INVESTIGATION ==="
+End Sub

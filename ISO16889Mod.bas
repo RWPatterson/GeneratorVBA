@@ -59,26 +59,17 @@ Private Function InitializeDefaultTermination() As Boolean
     
     On Error GoTo InitError
     
-    ' STEP 1: Determine test type and set RetainedMassValid flag
+    'Test what kind of test is being operated on - use class method
     If Not ISO16889ReportData.EvaluateByTestType() Then
-        Debug.Print "ERROR: EvaluateByTestType failed"
         GoTo InitError
     End If
     
-    ' STEP 2: Analyze the data to determine which filter achieved termination first
-    ' This is the core logic that was missing - we need to determine termination from DATA, not user input
-    If Not DetermineActualTerminationFromData() Then
-        Debug.Print "ERROR: Could not determine actual termination from data"
-        GoTo InitError
-    End If
-    
-    ' STEP 3: Determine sensor selection based on test configuration and termination filter
+    'Determine based on the test details what sensors to report from by default - use class method
     If Not ISO16889ReportData.EvaluateSelectedSensors() Then
-        Debug.Print "ERROR: EvaluateSelectedSensors failed"
         GoTo InitError
     End If
     
-    ' STEP 4: Validate that we got valid termination parameters
+    ' Validate termination parameters were set correctly
     If ISO16889ReportData.TerminationTime <= 0 Then
         MsgBox "Unable to determine test termination time." & vbCrLf & _
                "Check that pressure data and termination setpoints are valid.", vbCritical
@@ -91,11 +82,8 @@ Private Function InitializeDefaultTermination() As Boolean
         GoTo InitError
     End If
     
-    ' STEP 5: Record these as the baseline "From Data" values (before any user overrides)
-    Call RecordBaselineValues
-    
-    ' Update class cache
-    Call ISO16889ReportData.UpdateCache
+    ' DON'T UPDATE CACHE HERE - let GenerateISO16889Analysis handle it after tables are built
+    ' Call ISO16889ReportData.UpdateCache  ' <-- REMOVE THIS LINE
     
     InitializeDefaultTermination = True
     DevToolsMod.TimerEndCount "Default Termination Initialization"
@@ -104,6 +92,70 @@ Private Function InitializeDefaultTermination() As Boolean
 InitError:
     DevToolsMod.TimerEndCount "Default Termination Initialization (FAILED)"
     InitializeDefaultTermination = False
+End Function
+
+' Main analysis generation - always builds on first run, then uses cache appropriately
+Private Sub GenerateISO16889Analysis()
+    DevToolsMod.TimerStartCount
+    
+    ' Check if tables exist - if not, force rebuild regardless of cache
+    If Not AnalysisTablesExist() Then
+        Call ISO16889ReportData.InvalidateCache
+        Debug.Print "No analysis tables found - forcing rebuild"
+    End If
+    
+    ' Check if rebuild is needed using class method
+    If Not ISO16889ReportData.IsRebuildRequired() Then
+        DevToolsMod.TimerEndCount "ISO16889 Analysis (cached)"
+        Exit Sub
+    End If
+    
+    ' Calculate clump arrays based on (possibly modified) termination - use class methods
+    Call ISO16889ReportData.SetClumpTimes
+    Call ISO16889ReportData.SetClumpPressures
+    
+    'Clear the 16889 Data Tab
+    Sheets("ISO16889Data").UsedRange.Clear
+    
+    'Generate all sensor tables
+    Call FillISO16889Tables(DataFileMod.TestData, ISO16889ReportData)
+    
+    ' *** ADD THIS: Calculate beta sizes after tables are built ***
+    Call ISO16889ReportData.CalculateBetaSizes
+    
+    'Record save values to the ISOSaveData table
+    Call FillISO16889SaveData
+    
+    ' Update class cache ONLY after successful table generation
+    Call ISO16889ReportData.UpdateCache
+    
+    DevToolsMod.TimerEndCount "ISO16889 Analysis (rebuilt)"
+End Sub
+
+Private Function AnalysisTablesExist() As Boolean
+    Dim ws As Worksheet
+    Set ws = Sheets("ISO16889Data")
+    
+    On Error Resume Next
+    AnalysisTablesExist = (ws.ListObjects.count > 0)
+    On Error GoTo 0
+    
+    If AnalysisTablesExist Then
+        ' Verify tables have data rows (not just headers)
+        Dim tbl As ListObject
+        Dim hasData As Boolean
+        
+        For Each tbl In ws.ListObjects
+            If Not tbl.DataBodyRange Is Nothing Then
+                If tbl.DataBodyRange.Rows.count > 0 Then
+                    hasData = True
+                    Exit For
+                End If
+            End If
+        Next tbl
+        
+        AnalysisTablesExist = hasData
+    End If
 End Function
 
 ' NEW FUNCTION: Analyze the actual data to determine termination values
@@ -203,42 +255,6 @@ Private Sub ApplyUserInterventions()
     DevToolsMod.TimerEndCount "User Interventions Applied"
 End Sub
 
-' Main analysis generation - only rebuilds if needed
-Private Sub GenerateISO16889Analysis()
-    DevToolsMod.TimerStartCount
-    
-    ' Check if rebuild is needed using class method
-    If Not ISO16889ReportData.IsRebuildRequired() Then
-        Debug.Print "Using cached analysis - no rebuild needed"
-        DevToolsMod.TimerEndCount "ISO16889 Analysis (cached)"
-        Exit Sub
-    End If
-    
-    Debug.Print "Rebuilding ISO16889 analysis..."
-    
-    ' Calculate clump arrays based on (possibly modified) termination - use class methods
-    Call ISO16889ReportData.SetClumpTimes
-    Call ISO16889ReportData.SetClumpPressures
-    
-    ' Clear the 16889 Data Tab
-    Debug.Print "Clearing ISO16889Data sheet..."
-    Sheets("ISO16889Data").UsedRange.Clear
-    
-    ' Generate all sensor tables
-    Debug.Print "Generating ISO16889 tables..."
-    Call FillISO16889Tables(DataFileMod.TestData, ISO16889ReportData)
-    
-    ' Record final values to the ISOSaveData table (this updates the "From Data" column)
-    Debug.Print "Recording final save data..."
-    Call FillISO16889SaveData
-    
-    ' Update class cache
-    Call ISO16889ReportData.UpdateCache
-    
-    Debug.Print "Analysis rebuild completed"
-    DevToolsMod.TimerEndCount "ISO16889 Analysis (rebuilt)"
-End Sub
-
 ' Public function to force rebuild (for dashboard button clicks)
 Public Sub ForceRebuildAnalysis()
     Call ISO16889ReportData.InvalidateCache
@@ -290,6 +306,14 @@ Sub FillISO16889SaveData()
     'Set SelectedSizePhrase
     Call SetISO16889DataEntry(8, ISO16889ReportData.TerminationSizePhrase)
     
+    ' *** ADD THIS: Set Beta Size Values ***
+    Call SetISO16889DataEntry(9, ISO16889ReportData.ISO16889SizeAtBeta2)
+    Call SetISO16889DataEntry(10, ISO16889ReportData.ISO16889SizeAtBeta10)
+    Call SetISO16889DataEntry(11, ISO16889ReportData.ISO16889SizeAtBeta75)
+    Call SetISO16889DataEntry(12, ISO16889ReportData.ISO16889SizeAtBeta100)
+    Call SetISO16889DataEntry(13, ISO16889ReportData.ISO16889SizeAtBeta200)
+    Call SetISO16889DataEntry(14, ISO16889ReportData.ISO16889SizeAtBeta1000)
+    
 CleanupEvents:
     ' CRITICAL: Re-enable change events using SaveDataMod
     Call SaveDataMod.EndAutomatedUpdate
@@ -327,23 +351,23 @@ Sub GetISO16889TableData(TestData As DataFileClassMod, ReportData As ISO16889Cla
     Dim rowsPerBeta As Double
     Dim BetaStartRow As Long, BetaStopRow As Long
     Dim i As Long, j As Long, k As Long
-    Dim Sizes As Variant
+    Dim sizes As Variant
     Dim TempArrUp() As Double, TempArrDn() As Double
-    Dim CU() As Variant, CD() As Variant, Betas() As Variant
+    Dim CU() As Variant, CD() As Variant, betas() As Variant
     Dim TargetArrUp As Variant, TargetArrDn As Variant
     
     ' Select sizes and count data arrays based on sensor type
     Select Case sensorType
         Case "LS"
-            Sizes = TestData.LS_Sizes
+            sizes = TestData.LS_Sizes
             TargetArrUp = TestData.LSU_CountsData
             TargetArrDn = TestData.LSD_CountsData
         Case "LBE"
-            Sizes = TestData.LBE_Sizes
+            sizes = TestData.LBE_Sizes
             TargetArrUp = TestData.LBD_CountsData
             TargetArrDn = TestData.LBE_CountsData
         Case Else ' Default to LB
-            Sizes = TestData.LB_Sizes
+            sizes = TestData.LB_Sizes
             TargetArrUp = TestData.LBU_CountsData
             TargetArrDn = TestData.LBD_CountsData
     End Select
@@ -356,9 +380,9 @@ Sub GetISO16889TableData(TestData As DataFileClassMod, ReportData As ISO16889Cla
     BetaStopRow = 3
     
     ' Pre-allocate arrays for better performance
-    ReDim Betas(1 To 10, 1 To UBound(Sizes))
-    ReDim CU(1 To 10, 1 To UBound(Sizes))
-    ReDim CD(1 To 10, 1 To UBound(Sizes))
+    ReDim betas(1 To 10, 1 To UBound(sizes))
+    ReDim CU(1 To 10, 1 To UBound(sizes))
+    ReDim CD(1 To 10, 1 To UBound(sizes))
     
     ' Process each 10% time interval (10%, 20%, ... 100% of termination time)
     For i = 1 To 10
@@ -373,22 +397,22 @@ Sub GetISO16889TableData(TestData As DataFileClassMod, ReportData As ISO16889Cla
         ' Skip if insufficient data for this interval
         If BetaStopRow <= BetaStartRow Then
             ' Use previous interval's data or set to zero
-            For j = 1 To UBound(Sizes)
+            For j = 1 To UBound(sizes)
                 If i > 1 Then
                     CU(i, j) = CU(i - 1, j)
                     CD(i, j) = CD(i - 1, j)
-                    Betas(i, j) = Betas(i - 1, j)
+                    betas(i, j) = betas(i - 1, j)
                 Else
                     CU(i, j) = 0
                     CD(i, j) = 0
-                    Betas(i, j) = 100000
+                    betas(i, j) = 100000
                 End If
             Next j
             GoTo NextInterval
         End If
         
         ' Process each particle size bin
-        For j = 1 To UBound(Sizes)
+        For j = 1 To UBound(sizes)
             Dim windowSize As Long
             windowSize = BetaStopRow - BetaStartRow + 1
             
@@ -417,14 +441,14 @@ Sub GetISO16889TableData(TestData As DataFileClassMod, ReportData As ISO16889Cla
             
             ' Calculate beta ratio with proper handling of zero downstream counts
             If CD(i, j) > 0 Then
-                Betas(i, j) = CU(i, j) / CD(i, j)
+                betas(i, j) = CU(i, j) / CD(i, j)
             Else
-                Betas(i, j) = 100000 ' ISO 16889: Maximum beta when no downstream counts
+                betas(i, j) = 100000 ' ISO 16889: Maximum beta when no downstream counts
             End If
             
             ' Cap maximum beta value per ISO 16889
-            If Betas(i, j) > 100000 Then
-                Betas(i, j) = 100000
+            If betas(i, j) > 100000 Then
+                betas(i, j) = 100000
             End If
         Next j
         
@@ -436,15 +460,15 @@ NextInterval:
         Case "LS"
             ReportData.CU_LS = CU
             ReportData.CD_LS = CD
-            ReportData.Beta_LS = Betas
+            ReportData.Beta_LS = betas
         Case "LBE"
             ReportData.CU_LBE = CU
             ReportData.CD_LBE = CD
-            ReportData.Beta_LBE = Betas
+            ReportData.Beta_LBE = betas
         Case Else ' LB default
             ReportData.CU_LB = CU
             ReportData.CD_LB = CD
-            ReportData.Beta_LB = Betas
+            ReportData.Beta_LB = betas
     End Select
     
     DevToolsMod.TimerEndCount "ISO16889 " & sensorType & " Data Processing"
@@ -454,7 +478,7 @@ Function CreateISO16889Tables(TestData As DataFileClassMod, ReportData As ISO168
     Dim ws As Worksheet
     Set ws = Sheets("ISO16889Data")
     
-    Dim Sizes As Variant
+    Dim sizes As Variant
     Dim CU As Variant, CD As Variant, Beta As Variant
     Dim LabelPrefix As String
     Dim colCount As Long
@@ -464,19 +488,19 @@ Function CreateISO16889Tables(TestData As DataFileClassMod, ReportData As ISO168
     ' Select data arrays and label prefix for sensor type
     Select Case sensorType
         Case "LS"
-            Sizes = TestData.LS_Sizes
+            sizes = TestData.LS_Sizes
             CU = ReportData.CU_LS
             CD = ReportData.CD_LS
             Beta = ReportData.Beta_LS
             LabelPrefix = "LS"
         Case "LBE"
-            Sizes = TestData.LBE_Sizes
+            sizes = TestData.LBE_Sizes
             CU = ReportData.CU_LBE
             CD = ReportData.CD_LBE
             Beta = ReportData.Beta_LBE
             LabelPrefix = "LBE"
         Case Else ' LB default
-            Sizes = TestData.LB_Sizes
+            sizes = TestData.LB_Sizes
             CU = ReportData.CU_LB
             CD = ReportData.CD_LB
             Beta = ReportData.Beta_LB
@@ -493,11 +517,11 @@ Function CreateISO16889Tables(TestData As DataFileClassMod, ReportData As ISO168
     Next i
     
     ' Sizes array 1D to 2D for row write
-    colCount = UBound(Sizes)
+    colCount = UBound(sizes)
     Dim arrSizes() As Variant
     ReDim arrSizes(1 To 1, 1 To colCount)
     For i = 1 To colCount
-        arrSizes(1, i) = Sizes(i)
+        arrSizes(1, i) = sizes(i)
     Next i
     
     ' Disable updates during dump
@@ -655,37 +679,119 @@ End Function
 
 'Returns the beta from the selected sensors according to the named range calculation.
 Function GetISO16889SizeGivenBeta(Beta As Double) As String
-    Dim tempY As Variant
-    Dim tempX As Variant
-    Dim reshapeArrayY() As Double
-    Dim reshapeArrayX() As Double
-    Dim i As Integer
-    Dim n As Integer
+    Dim sizes As Variant
+    Dim betaArray As Variant
+    Dim avgBetas() As Double
+    Dim i As Long, j As Long
+    Dim sum As Double, count As Long
     
-    'Get Sizes
-    tempY = Application.Transpose(Evaluate("Selected_Sensor_Sizes"))
-    'Get Average Betas
-    tempX = Evaluate("Selected16889BetasAverages")
-
-    ' Reshape the 2D arrays into 1D 0 indexed arrays to use LinInterpolation function.
-    n = UBound(tempY)
-    ReDim reshapeArrayX(0 To n - 1)
-    ReDim reshapeArrayY(0 To n - 1)
-
-    For i = 0 To n - 1
-        reshapeArrayX(i) = tempX(1, i + 3)
-        reshapeArrayY(i) = tempY(i + 1)
-    Next i
-
-    If reshapeArrayX(0) > Beta Then
-        GetISO16889SizeGivenBeta = "<" & tempY(1)
-    Else
-        GetISO16889SizeGivenBeta = Format(MathMod.LinInterpolation(Beta, reshapeArrayX, reshapeArrayY, 0), "#0.0")
+    On Error GoTo ErrorHandler
+    
+    ' Get data directly from class object instead of named ranges
+    Select Case ISO16889ReportData.TerminationSizePhrase
+        Case "LS"
+            sizes = DataFileMod.TestData.LS_Sizes
+            betaArray = ISO16889ReportData.Beta_LS
+        Case "LBE"
+            sizes = DataFileMod.TestData.LBE_Sizes
+            betaArray = ISO16889ReportData.Beta_LBE
+        Case Else ' Default to LB
+            sizes = DataFileMod.TestData.LB_Sizes
+            betaArray = ISO16889ReportData.Beta_LB
+    End Select
+    
+    ' Validate we have data
+    If IsEmpty(sizes) Or IsEmpty(betaArray) Then
+        GetISO16889SizeGivenBeta = ""
+        Exit Function
     End If
+    
+    ' Calculate average beta for each size across all 10 time intervals
+    ReDim avgBetas(1 To UBound(sizes))
+    
+    For i = 1 To UBound(sizes)
+        sum = 0
+        count = 0
+        
+        For j = 1 To 10
+            If IsNumeric(betaArray(j, i)) And betaArray(j, i) > 0 Then
+                sum = sum + betaArray(j, i)
+                count = count + 1
+            End If
+        Next j
+        
+        If count > 0 Then
+            avgBetas(i) = sum / count
+        Else
+            avgBetas(i) = 0
+        End If
+    Next i
+    
+    ' Find first occurrence where beta drops to or below target
+    Dim firstOccurrenceIndex As Long
+    Dim foundFirst As Boolean
+    
+    For i = 1 To UBound(avgBetas)
+        If avgBetas(i) <= Beta Then
+            firstOccurrenceIndex = i
+            foundFirst = True
+            Exit For
+        End If
+    Next i
+    
+    ' EDGE CASE 1: Beta higher than all measured values (off-scale)
+    If Not foundFirst Then
+        GetISO16889SizeGivenBeta = "<" & Format(sizes(1), "0.0")
+        Exit Function
+    End If
+    
+    ' EDGE CASE 2: Check for statistical artifacts (larger sizes with lower betas)
+    For i = firstOccurrenceIndex + 1 To UBound(avgBetas)
+        If avgBetas(i) <= Beta Then
+            GetISO16889SizeGivenBeta = "" ' Return blank for statistical artifacts
+            Exit Function
+        End If
+    Next i
+    
+    ' NORMAL CASE: Find bracketing points and interpolate
+    For i = 1 To UBound(avgBetas) - 1
+        If (avgBetas(i) >= Beta And avgBetas(i + 1) <= Beta) Or _
+           (avgBetas(i) <= Beta And avgBetas(i + 1) >= Beta) Then
+            
+            ' Linear interpolation between bracketing points
+            If avgBetas(i) <> avgBetas(i + 1) Then
+                Dim interpolatedSize As Double
+                interpolatedSize = sizes(i) + _
+                    (Beta - avgBetas(i)) * (sizes(i + 1) - sizes(i)) / _
+                    (avgBetas(i + 1) - avgBetas(i))
+                
+                GetISO16889SizeGivenBeta = Format(interpolatedSize, "0.0")
+                Exit Function
+            End If
+        End If
+    Next i
+    
+    ' Check for exact matches
+    For i = 1 To UBound(avgBetas)
+        If Abs(avgBetas(i) - Beta) < 0.01 Then
+            GetISO16889SizeGivenBeta = Format(sizes(i), "0.0")
+            Exit Function
+        End If
+    Next i
+    
+    ' No valid interpolation found
+    GetISO16889SizeGivenBeta = ""
+    Exit Function
+    
+ErrorHandler:
+    GetISO16889SizeGivenBeta = ""
 End Function
 
+
+
+
 '======================================================================
-'================ SAVEDATA TABLE FUNCTIONS ===========================
+'================ SAVEDATA TABLE FUNCTIONS ============================
 '======================================================================
 
 'This sub returns the value of a field from the Save_Data table.
@@ -794,7 +900,7 @@ End Sub
 Private Function IsISO16889ModuleDataRow(rowID As Long) As Boolean
     ' Only clear rows that ISO16889 modules directly populate
     Select Case rowID
-        Case 1, 2, 3, 4, 7, 8  ' Termination data set by SetISO16889DataEntry
+        Case 1, 2, 3, 4, 7, 8, 9, 10, 11, 12, 13, 14
             IsISO16889ModuleDataRow = True
         Case Else
             IsISO16889ModuleDataRow = False  ' Formula-calculated or other data
@@ -1031,15 +1137,18 @@ Private Sub ClearISO16889Data()
         Sheets("ISO16889Data").UsedRange.Clear
     End If
     
-    ' Clear chart data sheets if they exist
+    ' Clear chart parameter tables - user input sections only (column 3)
     Dim chartSheets As Variant
-    chartSheets = Array("C1_DP_v_Mass", "C2_Beta_v_Size", "C3_Beta_v_Time", _
-                       "C4_Beta_v_Press", "C5_Up_Counts", "C6_Down_Counts")
+    chartSheets = Array("C1_DP_v_Mass", "C2_Beta_v_Size", "C3_Beta_v_Time", "C4_Beta_v_Press", "C5_Up_Counts", "C6_Down_Counts")
+    
+    Dim chartTables As Variant
+    chartTables = Array("ISO16889C1SITable", "ISO16889C2Table", "ISO16889C3Table", "ISO16889C4SITable", "ISO16889C5Table", "ISO16889C6Table")
     
     Dim i As Long
     For i = LBound(chartSheets) To UBound(chartSheets)
         If WorksheetExists(CStr(chartSheets(i))) Then
-            Sheets(CStr(chartSheets(i))).UsedRange.Clear
+            ' Fix: Use ListObjects (plural) not ListObject (singular)
+            Sheets(CStr(chartSheets(i))).ListObjects(CStr(chartTables(i))).ListColumns(3).DataBodyRange.ClearContents
         End If
     Next i
     
