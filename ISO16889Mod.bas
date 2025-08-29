@@ -763,38 +763,71 @@ End Sub
 '****************  Save Data Table Management  *************************
 '************************************************************************
 
-' Clear all ISO16889 save data when loading new file
 Private Sub ClearISO16889Data()
-    On Error Resume Next
+    On Error GoTo ErrorHandler
     
-    ' Clear the ISO16889Data sheet completely (this contains the analysis tables)
+    ' Clear the ISO16889Data sheet completely
     If Not IsEmpty(Sheets("ISO16889Data").Range("A1")) Then
         Sheets("ISO16889Data").UsedRange.Clear
+        Debug.Print "Cleared ISO16889Data sheet"
     End If
     
-    ' For chart sheets, only clear the data tables (V3 and below), preserve parameter tables
-    Dim chartSheets As Variant
-    chartSheets = Array("C1_DP_v_Mass", "C2_Beta_v_Size", "C3_Beta_v_Time", _
-                       "C4_Beta_v_Press", "C5_Up_Counts", "C6_Down_Counts")
+    ' Clear only specific table columns with maximum safety
+    Call ClearChartTableUserEntries
+    
+    Debug.Print "Conservative clear completed"
+    Exit Sub
+    
+ErrorHandler:
+    Debug.Print "Error in ClearISO16889Data_Conservative: " & Err.Description
+    On Error GoTo 0
+End Sub
+
+Private Sub ClearChartTableUserEntries()
+    Dim sheetTablePairs As Variant
+    
+    ' Define sheet/table pairs explicitly to avoid any confusion
+    sheetTablePairs = Array( _
+        Array("C1_DP_v_Mass", "ISO16889C1SITable"), Array("C2_Beta_v_Size", "ISO16889C2Table"), Array("C3_Beta_v_Time", "ISO16889C3Table"), Array("C4_Beta_v_Press", "ISO16889C4SITable"), Array("C5_Up_Counts", "ISO16889C5Table"), Array("C6_Down_Counts", "ISO16889C6Table"))
     
     Dim i As Long
-    For i = LBound(chartSheets) To UBound(chartSheets)
-        If WorksheetExists(CStr(chartSheets(i))) Then
-            ' Clear only data range starting from V3, preserve parameter tables
-            Dim ws As Worksheet
-            Set ws = Sheets(CStr(chartSheets(i)))
-            
-            ' Find the last used row and column in data area (V3 onwards)
-            Dim lastRow As Long, lastCol As Long
-            lastRow = ws.Cells(ws.Rows.count, "V").End(xlUp).Row
-            lastCol = ws.Cells(3, ws.Columns.count).End(xlToLeft).Column
-            
-            ' Only clear if there's actually data in the chart data area
-            If lastRow >= 3 And lastCol >= 22 Then ' Column V = 22
-                ws.Range("V3", ws.Cells(lastRow, lastCol)).Clear
-            End If
-        End If
+    For i = LBound(sheetTablePairs) To UBound(sheetTablePairs)
+        Call ClearSingleTableUserEntry((sheetTablePairs(i)(0)), (sheetTablePairs(i)(1)))
     Next i
+End Sub
+
+Private Sub ClearSingleTableUserEntry(sheetName As String, tableName As String)
+    On Error Resume Next
+    
+    Dim ws As Worksheet
+    Dim tbl As ListObject
+    
+    ' Multiple safety checks
+    Set ws = Sheets(sheetName)
+    If ws Is Nothing Then
+        Debug.Print "Sheet not found: " & sheetName
+        Exit Sub
+    End If
+    
+    Set tbl = ws.ListObjects(tableName)
+    If tbl Is Nothing Then
+        Debug.Print "Table not found: " & tableName & " on sheet " & sheetName
+        Exit Sub
+    End If
+    
+    If tbl.ListColumns.count < 3 Then
+        Debug.Print "Table " & tableName & " has insufficient columns"
+        Exit Sub
+    End If
+    
+    If tbl.DataBodyRange Is Nothing Then
+        Debug.Print "Table " & tableName & " has no data body"
+        Exit Sub
+    End If
+    
+    ' Finally clear the user entry column (column 3)
+    tbl.ListColumns(3).DataBodyRange.ClearContents
+    Debug.Print "Cleared user entries from " & tableName
     
     On Error GoTo 0
 End Sub
