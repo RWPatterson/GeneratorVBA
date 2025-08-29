@@ -353,23 +353,23 @@ Sub GetISO16889TableData(TestData As DataFileClassMod, ReportData As ISO16889Cla
     Dim rowsPerBeta As Double
     Dim BetaStartRow As Long, BetaStopRow As Long
     Dim i As Long, j As Long, k As Long
-    Dim sizes As Variant
+    Dim Sizes As Variant
     Dim TempArrUp() As Double, TempArrDn() As Double
-    Dim CU() As Variant, CD() As Variant, betas() As Variant
+    Dim CU() As Variant, CD() As Variant, Betas() As Variant
     Dim TargetArrUp As Variant, TargetArrDn As Variant
     
     ' Select sizes and count data arrays based on sensor type
     Select Case sensorType
         Case "LS"
-            sizes = TestData.LS_Sizes
+            Sizes = TestData.LS_Sizes
             TargetArrUp = TestData.LSU_CountsData
             TargetArrDn = TestData.LSD_CountsData
         Case "LBE"
-            sizes = TestData.LBE_Sizes
+            Sizes = TestData.LBE_Sizes
             TargetArrUp = TestData.LBD_CountsData
             TargetArrDn = TestData.LBE_CountsData
         Case Else ' Default to LB
-            sizes = TestData.LB_Sizes
+            Sizes = TestData.LB_Sizes
             TargetArrUp = TestData.LBU_CountsData
             TargetArrDn = TestData.LBD_CountsData
     End Select
@@ -382,9 +382,9 @@ Sub GetISO16889TableData(TestData As DataFileClassMod, ReportData As ISO16889Cla
     BetaStopRow = 3
     
     ' Pre-allocate arrays for better performance
-    ReDim betas(1 To 10, 1 To UBound(sizes))
-    ReDim CU(1 To 10, 1 To UBound(sizes))
-    ReDim CD(1 To 10, 1 To UBound(sizes))
+    ReDim Betas(1 To 10, 1 To UBound(Sizes))
+    ReDim CU(1 To 10, 1 To UBound(Sizes))
+    ReDim CD(1 To 10, 1 To UBound(Sizes))
     
     ' Process each 10% time interval (10%, 20%, ... 100% of termination time)
     For i = 1 To 10
@@ -399,22 +399,22 @@ Sub GetISO16889TableData(TestData As DataFileClassMod, ReportData As ISO16889Cla
         ' Skip if insufficient data for this interval
         If BetaStopRow <= BetaStartRow Then
             ' Use previous interval's data or set to zero
-            For j = 1 To UBound(sizes)
+            For j = 1 To UBound(Sizes)
                 If i > 1 Then
                     CU(i, j) = CU(i - 1, j)
                     CD(i, j) = CD(i - 1, j)
-                    betas(i, j) = betas(i - 1, j)
+                    Betas(i, j) = Betas(i - 1, j)
                 Else
                     CU(i, j) = 0
                     CD(i, j) = 0
-                    betas(i, j) = 100000
+                    Betas(i, j) = 0  ' FIXED: Set to 0 instead of 100000 when no data
                 End If
             Next j
             GoTo NextInterval
         End If
         
         ' Process each particle size bin
-        For j = 1 To UBound(sizes)
+        For j = 1 To UBound(Sizes)
             Dim windowSize As Long
             windowSize = BetaStopRow - BetaStartRow + 1
             
@@ -441,16 +441,24 @@ Sub GetISO16889TableData(TestData As DataFileClassMod, ReportData As ISO16889Cla
             CU(i, j) = WorksheetFunction.Average(TempArrUp)
             CD(i, j) = WorksheetFunction.Average(TempArrDn)
             
-            ' Calculate beta ratio with proper handling of zero downstream counts
-            If CD(i, j) > 0 Then
-                betas(i, j) = CU(i, j) / CD(i, j)
+            ' FIXED: Handle zero counts properly in beta calculation
+            If CU(i, j) = 0 And CD(i, j) = 0 Then
+                ' Both upstream and downstream are zero - no valid data for this interval
+                Betas(i, j) = 0
+            ElseIf CD(i, j) > 0 Then
+                ' Normal case - downstream counts exist
+                Betas(i, j) = CU(i, j) / CD(i, j)
+            ElseIf CU(i, j) > 0 And CD(i, j) = 0 Then
+                ' Upstream counts but no downstream - perfect filtration
+                Betas(i, j) = 100000  ' ISO 16889: Maximum beta when no downstream counts
             Else
-                betas(i, j) = 100000 ' ISO 16889: Maximum beta when no downstream counts
+                ' CU(i, j) = 0 and CD(i, j) > 0 - this shouldn't happen physically but handle gracefully
+                Betas(i, j) = 0
             End If
             
             ' Cap maximum beta value per ISO 16889
-            If betas(i, j) > 100000 Then
-                betas(i, j) = 100000
+            If Betas(i, j) > 100000 Then
+                Betas(i, j) = 100000
             End If
         Next j
         
@@ -462,15 +470,15 @@ NextInterval:
         Case "LS"
             ReportData.CU_LS = CU
             ReportData.CD_LS = CD
-            ReportData.Beta_LS = betas
+            ReportData.Beta_LS = Betas
         Case "LBE"
             ReportData.CU_LBE = CU
             ReportData.CD_LBE = CD
-            ReportData.Beta_LBE = betas
+            ReportData.Beta_LBE = Betas
         Case Else ' LB default
             ReportData.CU_LB = CU
             ReportData.CD_LB = CD
-            ReportData.Beta_LB = betas
+            ReportData.Beta_LB = Betas
     End Select
     
     DevToolsMod.TimerEndCount "ISO16889 " & sensorType & " Data Processing"
@@ -480,7 +488,7 @@ Function CreateISO16889Tables(TestData As DataFileClassMod, ReportData As ISO168
     Dim ws As Worksheet
     Set ws = Sheets("ISO16889Data")
     
-    Dim sizes As Variant
+    Dim Sizes As Variant
     Dim CU As Variant, CD As Variant, Beta As Variant
     Dim LabelPrefix As String
     Dim colCount As Long
@@ -490,19 +498,19 @@ Function CreateISO16889Tables(TestData As DataFileClassMod, ReportData As ISO168
     ' Select data arrays and label prefix for sensor type
     Select Case sensorType
         Case "LS"
-            sizes = TestData.LS_Sizes
+            Sizes = TestData.LS_Sizes
             CU = ReportData.CU_LS
             CD = ReportData.CD_LS
             Beta = ReportData.Beta_LS
             LabelPrefix = "LS"
         Case "LBE"
-            sizes = TestData.LBE_Sizes
+            Sizes = TestData.LBE_Sizes
             CU = ReportData.CU_LBE
             CD = ReportData.CD_LBE
             Beta = ReportData.Beta_LBE
             LabelPrefix = "LBE"
         Case Else ' LB default
-            sizes = TestData.LB_Sizes
+            Sizes = TestData.LB_Sizes
             CU = ReportData.CU_LB
             CD = ReportData.CD_LB
             Beta = ReportData.Beta_LB
@@ -519,11 +527,11 @@ Function CreateISO16889Tables(TestData As DataFileClassMod, ReportData As ISO168
     Next i
     
     ' Sizes array 1D to 2D for row write
-    colCount = UBound(sizes)
+    colCount = UBound(Sizes)
     Dim arrSizes() As Variant
     ReDim arrSizes(1 To 1, 1 To colCount)
     For i = 1 To colCount
-        arrSizes(1, i) = sizes(i)
+        arrSizes(1, i) = Sizes(i)
     Next i
     
     ' Disable updates during dump
@@ -742,11 +750,13 @@ Public Sub SetISO16889DataEntry(ID As Integer, SaveValue As String)
     Set ws = ThisWorkbook.Worksheets("Save_Data")
     Set tbl = ws.ListObjects("ISO16889SaveDataTable")
     
-    tbl.DataBodyRange(ID, 6).Value = SaveValue
+    Debug.Print "Setting ID " & ID & " to value: " & SaveValue
+    tbl.DataBodyRange(ID, 6).Value = SaveValue  ' Column 6 = "From Data"
+    
     Exit Sub
 
 ErrorHandler:
-    ' Silent error handling
+    Debug.Print "Error in SetISO16889DataEntry ID " & ID & ": " & Err.Description
 End Sub
 
 '************************************************************************

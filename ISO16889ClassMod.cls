@@ -43,12 +43,12 @@ Public CD_LBE As Variant
 Public Beta_LBE As Variant
 
 'test result details
-Public ISO16889SizeAtBeta2 As Double
-Public ISO16889SizeAtBeta10 As Double
-Public ISO16889SizeAtBeta75 As Double
-Public ISO16889SizeAtBeta100 As Double
-Public ISO16889SizeAtBeta200 As Double
-Public ISO16889SizeAtBeta1000 As Double
+Public ISO16889SizeAtBeta2 As String
+Public ISO16889SizeAtBeta10 As String
+Public ISO16889SizeAtBeta75 As String
+Public ISO16889SizeAtBeta100 As String
+Public ISO16889SizeAtBeta200 As String
+Public ISO16889SizeAtBeta1000 As String
 
 ' Cache for expensive calculations
 Private Type analysisCache
@@ -531,8 +531,8 @@ CalculationError:
 End Sub
 
 'Returns the beta from the selected sensors according to the named range calculation.
-Function GetISO16889SizeGivenBeta(Beta As Double) As String
-    Dim sizes As Variant
+Private Function GetISO16889SizeGivenBeta(Beta As Double) As String
+    Dim Sizes As Variant
     Dim betaArray As Variant
     Dim avgBetas() As Double
     Dim i As Long, j As Long
@@ -542,80 +542,173 @@ Function GetISO16889SizeGivenBeta(Beta As Double) As String
     On Error GoTo ErrorHandler
     
     ' Get data directly from class object based on selected sensor
-    Select Case ISO16889ReportData.TerminationSizePhrase
+    Select Case Me.TerminationSizePhrase
         Case "LS"
-            sizes = DataFileMod.TestData.LS_Sizes
-            betaArray = ISO16889ReportData.Beta_LS
+            Sizes = DataFileMod.TestData.LS_Sizes
+            betaArray = Me.Beta_LS
         Case "LBE"
-            sizes = DataFileMod.TestData.LBE_Sizes
-            betaArray = ISO16889ReportData.Beta_LBE
+            Sizes = DataFileMod.TestData.LBE_Sizes
+            betaArray = Me.Beta_LBE
         Case Else
-            sizes = DataFileMod.TestData.LB_Sizes
-            betaArray = ISO16889ReportData.Beta_LB
+            Sizes = DataFileMod.TestData.LB_Sizes
+            betaArray = Me.Beta_LB
     End Select
     
     ' Validate we have data
-    If IsEmpty(sizes) Or IsEmpty(betaArray) Then
+    If IsEmpty(Sizes) Or IsEmpty(betaArray) Then
+        Debug.Print "Empty arrays in GetISO16889SizeGivenBeta"
         GetISO16889SizeGivenBeta = ""
         Exit Function
     End If
     
-    ' Calculate average beta for each size across all 10 time intervals
-    ReDim avgBetas(1 To UBound(sizes))
+    ' Calculate average beta for each size across ALL available time intervals
+    ReDim avgBetas(1 To UBound(Sizes))
     
-    For i = 1 To UBound(sizes)
+    For i = 1 To UBound(Sizes)
         sum = 0: count = 0
-        For j = 1 To 10
-            If IsNumeric(betaArray(j, i)) And betaArray(j, i) > 0 And betaArray(j, i) < 100000 Then
-                sum = sum + betaArray(j, i)
-                count = count + 1
+        For j = 1 To UBound(betaArray, 1)
+            If j <= UBound(betaArray, 1) And i <= UBound(betaArray, 2) Then
+                Dim betaValue As Double
+                betaValue = betaArray(j, i)
+                
+                ' Include ALL positive numeric values, including 100000 (high beta cap)
+                If IsNumeric(betaValue) And betaValue > 0 Then
+                    sum = sum + betaValue
+                    count = count + 1
+                End If
             End If
         Next j
-        avgBetas(i) = IIf(count > 0, sum / count, 0)
+        
+        ' Calculate average
+        If count > 0 Then
+            avgBetas(i) = sum / count
+        Else
+            avgBetas(i) = 0  ' Mark as no data
+        End If
     Next i
     
-    ' Check for statistical artifacts (larger sizes having lower betas than smaller sizes)
-    For i = 2 To UBound(avgBetas)
-        If avgBetas(i) > 0 And avgBetas(i - 1) > 0 Then
-            If avgBetas(i) < avgBetas(i - 1) Then
-                ' Statistical artifact detected - return blank
-                GetISO16889SizeGivenBeta = ""
+    ' Debug output showing ALL beta progression
+    Debug.Print "Average betas for " & Me.TerminationSizePhrase & " (target ß=" & Beta & "):"
+    For i = 1 To UBound(avgBetas)
+        If avgBetas(i) > 0 Then
+            If avgBetas(i) >= 100000 Then
+                Debug.Print "  Size " & Sizes(i) & ": ß=100000 (capped high)"
+            Else
+                Debug.Print "  Size " & Sizes(i) & ": ß=" & Format(avgBetas(i), "0.00")
+            End If
+        End If
+    Next i
+    
+    ' Find the actual data range (all sizes with any beta data)
+    Dim firstValidSize As Long, lastValidSize As Long
+    firstValidSize = 0
+    lastValidSize = 0
+    
+    For i = 1 To UBound(avgBetas)
+        If avgBetas(i) > 0 Then
+            If firstValidSize = 0 Then firstValidSize = i
+            lastValidSize = i
+        End If
+    Next i
+    
+    If firstValidSize = 0 Then
+        Debug.Print "No valid beta data found"
+        GetISO16889SizeGivenBeta = ""
+        Exit Function
+    End If
+    
+    Debug.Print "Data range: Size " & Sizes(firstValidSize) & " to " & Sizes(lastValidSize)
+    
+    ' Check for off-scale conditions using actual min/max in the data
+    Dim minBeta As Double, maxBeta As Double
+    minBeta = 999999  ' Start high
+    maxBeta = 0       ' Start low
+    
+    For i = firstValidSize To lastValidSize
+        If avgBetas(i) > 0 Then
+            If avgBetas(i) < minBeta Then minBeta = avgBetas(i)
+            If avgBetas(i) > maxBeta Then maxBeta = avgBetas(i)
+        End If
+    Next i
+    
+    Debug.Print "Beta range: " & Format(minBeta, "0.00") & " to " & IIf(maxBeta >= 100000, "100000+", Format(maxBeta, "0.00"))
+    
+    If Beta < minBeta Then
+        GetISO16889SizeGivenBeta = "<" & Format(Sizes(firstValidSize), "0.0")
+        Debug.Print "Beta " & Beta & " is off-scale low: <" & Sizes(firstValidSize)
+        Exit Function
+    End If
+    
+    If Beta > maxBeta Then
+        GetISO16889SizeGivenBeta = ">" & Format(Sizes(lastValidSize), "0.0")
+        Debug.Print "Beta " & Beta & " is off-scale high: >" & Sizes(lastValidSize)
+        Exit Function
+    End If
+    
+    ' Find adjacent sizes that bracket the target beta
+    For i = firstValidSize To lastValidSize - 1
+        If avgBetas(i) > 0 And avgBetas(i + 1) > 0 Then
+            ' Check if target beta falls between these two adjacent sizes
+            ' Handle both increasing and decreasing progressions
+            If (avgBetas(i) <= Beta And avgBetas(i + 1) >= Beta) Or _
+               (avgBetas(i) >= Beta And avgBetas(i + 1) <= Beta) Then
+                
+                ' Perform interpolation between adjacent sizes
+                resultSize = MathMod.LinearInterpolation(Beta, avgBetas(i), avgBetas(i + 1), Sizes(i), Sizes(i + 1))
+                GetISO16889SizeGivenBeta = Format(resultSize, "0.1")
+                
+                Debug.Print "Beta " & Beta & " interpolated between adjacent sizes:"
+                Debug.Print "  Size " & Sizes(i) & " (ß=" & IIf(avgBetas(i) >= 100000, "100000", Format(avgBetas(i), "0.00")) & ") and Size " & Sizes(i + 1) & " (ß=" & IIf(avgBetas(i + 1) >= 100000, "100000", Format(avgBetas(i + 1), "0.00")) & ")"
+                Debug.Print "  Result: " & Format(resultSize, "0.1") & " microns"
                 Exit Function
             End If
         End If
     Next i
     
-    ' Find the appropriate size range for interpolation
-    If avgBetas(1) > Beta Then
-        ' Beta is higher than smallest size can achieve
-        GetISO16889SizeGivenBeta = "<" & Format(sizes(1), "#0.0")
-        Exit Function
-    End If
+    ' If not found between adjacent sizes, look for non-adjacent bracketing
+    ' This handles cases where there might be gaps in the progression
+    Dim lowerBetaIdx As Long, higherBetaIdx As Long
+    Dim lowerBeta As Double, higherBeta As Double
+    lowerBetaIdx = 0
+    higherBetaIdx = 0
+    lowerBeta = 0
+    higherBeta = 999999
     
-    ' Check if beta is lower than what any size can achieve
-    If avgBetas(UBound(avgBetas)) < Beta Then
-        ' Beta is lower than largest size - extrapolate or cap
-        GetISO16889SizeGivenBeta = ">" & Format(sizes(UBound(sizes)), "#0.0")
-        Exit Function
-    End If
-    
-    ' Find bracketing values for interpolation
-    For i = 1 To UBound(avgBetas) - 1
-        If avgBetas(i) <= Beta And avgBetas(i + 1) >= Beta Then
-            ' Linear interpolation between sizes
-            resultSize = MathMod.LinearInterpolation(Beta, avgBetas(i), avgBetas(i + 1), sizes(i), sizes(i + 1))
-            GetISO16889SizeGivenBeta = Format(resultSize, "#0.0")
-            Exit Function
+    For i = firstValidSize To lastValidSize
+        If avgBetas(i) > 0 Then
+            ' Look for beta just below target
+            If avgBetas(i) < Beta And avgBetas(i) > lowerBeta Then
+                lowerBeta = avgBetas(i)
+                lowerBetaIdx = i
+            End If
+            
+            ' Look for beta just above target
+            If avgBetas(i) > Beta And avgBetas(i) < higherBeta Then
+                higherBeta = avgBetas(i)
+                higherBetaIdx = i
+            End If
         End If
     Next i
+        
+    If lowerBetaIdx > 0 And higherBetaIdx > 0 Then
+        ' Found bracketing values (may not be adjacent)
+        resultSize = MathMod.LinearInterpolation(Beta, lowerBeta, higherBeta, Sizes(lowerBetaIdx), Sizes(higherBetaIdx))
+        GetISO16889SizeGivenBeta = Format(resultSize, "0.1")
+        
+        Debug.Print "Beta " & Beta & " interpolated between non-adjacent sizes:"
+        Debug.Print "  Size " & Sizes(lowerBetaIdx) & " (ß=" & IIf(lowerBeta >= 100000, "100000", Format(lowerBeta, "0.00")) & ") and Size " & Sizes(higherBetaIdx) & " (ß=" & IIf(higherBeta >= 100000, "100000", Format(higherBeta, "0.00")) & ")"
+        Debug.Print "  Result: " & Format(resultSize, "0.1") & " microns"
+        Exit Function
+    End If
     
-    ' Fallback - should not reach here with valid data
+    ' If we get here, something went wrong with the bracketing
+    Debug.Print "ERROR: Could not find bracketing values for Beta " & Beta
     GetISO16889SizeGivenBeta = ""
     Exit Function
     
 ErrorHandler:
     GetISO16889SizeGivenBeta = ""
-    Debug.Print "Error in GetISO16889SizeGivenBeta: " & Err.Description
+    Debug.Print "Error in GetISO16889SizeGivenBeta for beta " & Beta & ": " & Err.Description
 End Function
 
 '======================================================================

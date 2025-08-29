@@ -287,7 +287,7 @@ Private Sub ExtractAllTagArrays()
     
     ' Process Sizes
     result = ExtractTagArray(";Particle", "Sizes", wsCache.Name)
-    If Not IsEmpty(result) Then TestData.sizes = result
+    If Not IsEmpty(result) Then TestData.Sizes = result
     
     ' Process LB_Sizes
     result = ExtractTagArray(";Particle", "LBSizes", wsCache.Name)
@@ -366,7 +366,7 @@ Private Sub Process3RowData()
     
     Dim analogCols As Long, pcCols As Long
     analogCols = UBound(TestData.AnalogTags) + 1
-    pcCols = UBound(TestData.sizes) + 1
+    pcCols = UBound(TestData.Sizes) + 1
     
     ' Single massive read operation
     Dim totalRows As Long
@@ -402,7 +402,7 @@ Private Sub Process3RowData()
     TestData.analogData = analogData
     TestData.LBU_CountsData = lbuData
     TestData.LBD_CountsData = lbdData
-    TestData.LB_Sizes = TestData.sizes
+    TestData.LB_Sizes = TestData.Sizes
     TestData.DataRowCount = wsCache.rowCount
 End Sub
 
