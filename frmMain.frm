@@ -175,6 +175,8 @@ Private Sub UserForm_Activate()
     Dim File As String
     Dim FilePath As String
     
+    Call DataFileMod.EnsureDataFileReady
+    
     'Modified to check the Save_Data table
     If DataFileMod.TestData.DataExist = True Then
         Me.FileInfo = "File Open: " & DataFileMod.TestData.FileName & " .dat"
@@ -280,6 +282,8 @@ End Sub
 Private Sub AddEditTestInfoBtn_Click()
     Me.Hide
     
+    Call DataFileMod.EnsureDataFileReady
+    
     'If data is available, change the report options as usual.
     If DataFileMod.TestData.DataExist = True Then
         frmTestInfo.Show
@@ -298,7 +302,7 @@ Private Sub CreateReportBtn_Click()
         DataFileMod.TestData.DataExist = True
         DataFileMod.SetupDataFileModule
         
-        Sheets("Home").Select
+        Sheets("Dashboard").Select
         
         Application.ScreenUpdating = True
         

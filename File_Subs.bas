@@ -79,7 +79,7 @@ Function OpenTextAndGetData(ByVal FileToOpen As Variant) As Variant
         Tab:=True, Semicolon:=False, Comma:=True, Space:=False, Other:=False
 
     ' Read the data into array
-    tempArray = ActiveSheet.UsedRange.Value
+    tempArray = ActiveSheet.usedRange.Value
 
     ' Remove any double quotes from the data
     Call RemoveDoubleQuotes(tempArray)

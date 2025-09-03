@@ -19,6 +19,8 @@ Public Sub SetupISO16889ClassModule()
     Set ISO16889ReportData = New ISO16889ClassMod
     Set ISO16889ReportData.WorkbookInstance = ThisWorkbook
     
+    Call DataFileMod.EnsureDataFileReady
+    
     If DataFileMod.TestData.DataExist Then
         ' CRITICAL: Validate file compatibility first
         If Not ISO16889ReportData.ValidateFileCompatibility() Then
@@ -113,7 +115,7 @@ Private Sub GenerateISO16889Analysis()
     
     ' Clear the 16889 Data Tab
     Debug.Print "Clearing ISO16889Data sheet..."
-    Sheets("ISO16889Data").UsedRange.Clear
+    Sheets("ISO16889Data").usedRange.Clear
     
     ' Generate all sensor tables
     Debug.Print "Generating ISO16889 tables..."
@@ -357,6 +359,7 @@ Sub GetISO16889TableData(TestData As DataFileClassMod, ReportData As ISO16889Cla
     Dim TempArrUp() As Double, TempArrDn() As Double
     Dim CU() As Variant, CD() As Variant, Betas() As Variant
     Dim TargetArrUp As Variant, TargetArrDn As Variant
+    Dim minRequiredRows As Long
     
     ' Select sizes and count data arrays based on sensor type
     Select Case sensorType
@@ -375,8 +378,10 @@ Sub GetISO16889TableData(TestData As DataFileClassMod, ReportData As ISO16889Cla
     End Select
     
     ' ISO 16889 Compliant: Calculate rows per 10% time interval
-    ' rowsPerBeta = (10% of final test time in minutes) / (cycle time in minutes)
     rowsPerBeta = (ReportData.TerminationTime * 0.1) / ((TestData.CountTime + TestData.HoldTime) / 60)
+    
+    ' Minimum required rows for valid calculation (e.g., need at least 2 data points)
+    minRequiredRows = 2
     
     ' ISO 16889: Skip first 3 records per standard
     BetaStopRow = 3
@@ -396,22 +401,26 @@ Sub GetISO16889TableData(TestData As DataFileClassMod, ReportData As ISO16889Cla
             BetaStopRow = UBound(TargetArrUp, 1)
         End If
         
-        ' Skip if insufficient data for this interval
-        If BetaStopRow <= BetaStartRow Then
-            ' Use previous interval's data or set to zero
+        ' CRITICAL FIX: Check if we have sufficient data for meaningful calculation
+        Dim dataWindowSize As Long
+        dataWindowSize = BetaStopRow - BetaStartRow + 1
+        
+        If BetaStopRow <= BetaStartRow Or dataWindowSize < minRequiredRows Then
+            ' FIXED: Leave values blank (Empty) instead of setting to 0
             For j = 1 To UBound(Sizes)
-                If i > 1 Then
-                    CU(i, j) = CU(i - 1, j)
-                    CD(i, j) = CD(i - 1, j)
-                    Betas(i, j) = Betas(i - 1, j)
-                Else
-                    CU(i, j) = 0
-                    CD(i, j) = 0
-                    Betas(i, j) = 0  ' FIXED: Set to 0 instead of 100000 when no data
-                End If
+                CU(i, j) = Empty      ' Was: CU(i, j) = 0
+                CD(i, j) = Empty      ' Was: CD(i, j) = 0
+                Betas(i, j) = Empty   ' Was: Betas(i, j) = 100000
             Next j
+            
+            Debug.Print "Interval " & i & " (time " & Format(ReportData.TerminationTime * i / 10, "0.0") & " min): " & _
+                       "Insufficient data (window size: " & dataWindowSize & "). Values left blank."
             GoTo NextInterval
         End If
+        
+        ' Log data window information for debugging
+        Debug.Print "Interval " & i & " (time " & Format(ReportData.TerminationTime * i / 10, "0.0") & " min): " & _
+                   "Rows " & BetaStartRow & " to " & BetaStopRow & " (window size: " & dataWindowSize & ")"
         
         ' Process each particle size bin
         For j = 1 To UBound(Sizes)
@@ -438,26 +447,18 @@ Sub GetISO16889TableData(TestData As DataFileClassMod, ReportData As ISO16889Cla
             Next k
             
             ' Calculate averages for this time interval
-            CU(i, j) = WorksheetFunction.Average(TempArrUp)
-            CD(i, j) = WorksheetFunction.Average(TempArrDn)
+            CU(i, j) = Application.WorksheetFunction.Average(TempArrUp)
+            CD(i, j) = Application.WorksheetFunction.Average(TempArrDn)
             
-            ' FIXED: Handle zero counts properly in beta calculation
-            If CU(i, j) = 0 And CD(i, j) = 0 Then
-                ' Both upstream and downstream are zero - no valid data for this interval
-                Betas(i, j) = 0
-            ElseIf CD(i, j) > 0 Then
-                ' Normal case - downstream counts exist
+            ' Calculate beta ratio with proper handling of zero downstream counts
+            If CD(i, j) > 0 Then
                 Betas(i, j) = CU(i, j) / CD(i, j)
-            ElseIf CU(i, j) > 0 And CD(i, j) = 0 Then
-                ' Upstream counts but no downstream - perfect filtration
-                Betas(i, j) = 100000  ' ISO 16889: Maximum beta when no downstream counts
             Else
-                ' CU(i, j) = 0 and CD(i, j) > 0 - this shouldn't happen physically but handle gracefully
-                Betas(i, j) = 0
+                Betas(i, j) = 100000 ' ISO 16889: Maximum beta when no downstream counts
             End If
             
             ' Cap maximum beta value per ISO 16889
-            If Betas(i, j) > 100000 Then
+            If IsNumeric(Betas(i, j)) And Betas(i, j) > 100000 Then
                 Betas(i, j) = 100000
             End If
         Next j
@@ -493,7 +494,7 @@ Function CreateISO16889Tables(TestData As DataFileClassMod, ReportData As ISO168
     Dim LabelPrefix As String
     Dim colCount As Long
     Dim arrTimes() As Variant, arrPressures() As Variant
-    Dim i As Long, rowCount As Long
+    Dim i As Long, j As Long, rowCount As Long
     
     ' Select data arrays and label prefix for sensor type
     Select Case sensorType
@@ -516,6 +517,11 @@ Function CreateISO16889Tables(TestData As DataFileClassMod, ReportData As ISO168
             Beta = ReportData.Beta_LB
             LabelPrefix = "LB"
     End Select
+    
+    ' ENHANCED: Clean arrays to handle Empty values properly before Excel write
+    CU = TableMod.CleanArrayForExcel(CU)
+    CD = TableMod.CleanArrayForExcel(CD)
+    Beta = TableMod.CleanArrayForExcel(Beta)
     
     ' Pre-convert 1D arrays C_Times and C_Pressures to 2D variant arrays for bulk write
     rowCount = UBound(ReportData.C_Times)
@@ -768,7 +774,7 @@ Private Sub ClearISO16889Data()
     
     ' Clear the ISO16889Data sheet completely
     If Not IsEmpty(Sheets("ISO16889Data").Range("A1")) Then
-        Sheets("ISO16889Data").UsedRange.Clear
+        Sheets("ISO16889Data").usedRange.Clear
         Debug.Print "Cleared ISO16889Data sheet"
     End If
     

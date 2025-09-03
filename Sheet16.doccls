@@ -203,8 +203,15 @@ Private Function ValidateSensorSelection(newSensor As String) As Boolean
     
     If ISO16889Mod.ISO16889ReportData.IsValidSensorChoice(newSensor) Then
         ValidateSensorSelection = True
+        
+        ' ENHANCED: Update the class property (was missing before)
+        ISO16889Mod.ISO16889ReportData.TerminationSizePhrase = newSensor
+        
+        ' NEW: Trigger beta value updates in SaveData table
+        Call UpdateBetaValuesForSensorChange(newSensor)
+        
         MsgBox "Sensor selection updated to " & newSensor & "." & vbCrLf & _
-               "Report displays will now use " & newSensor & " data.", _
+               "Beta size values have been recalculated.", _
                vbInformation, "Sensor Updated"
     Else
         Dim availableSensors As String
@@ -216,6 +223,41 @@ Private Function ValidateSensorSelection(newSensor As String) As Boolean
         ValidateSensorSelection = False
     End If
 End Function
+
+Private Sub UpdateBetaValuesForSensorChange(newSensor As String)
+    ' CRITICAL: Suppress change events during automated updates
+    Call BeginAutomatedUpdate  ' Use your existing method
+    
+    On Error GoTo CleanupEvents
+    
+    ' Recalculate all beta size values for the new sensor
+    Dim betaTargets As Variant
+    betaTargets = Array(2, 10, 75, 100, 200, 1000) ' Standard ISO 16889 beta levels
+    
+    Dim i As Long
+    For i = 0 To UBound(betaTargets)
+        Dim betaValue As Double
+        Dim sizeResult As String
+        Dim saveDataID As Long
+        
+        betaValue = betaTargets(i)
+        saveDataID = 9 + i  ' IDs 9-14 for beta sizes
+        
+        ' Calculate size for this beta using the NEW sensor
+        sizeResult = ISO16889ClassMod.GetISO16889SizeGivenBeta(betaValue)
+        
+        ' Update the From Data column with new calculation
+        Call ISO16889Mod.SetISO16889DataEntry(saveDataID, sizeResult)
+        
+        Debug.Print "Updated Beta " & betaValue & " size to: " & sizeResult & " (Sensor: " & newSensor & ")"
+    Next i
+    
+CleanupEvents:
+    Call EndAutomatedUpdate  ' Use your existing method
+    If Err.Number <> 0 Then
+        MsgBox "Error updating beta values: " & Err.Description, vbCritical
+    End If
+End Sub
 
 ' Simple rebuild prompt - let user decide
 Private Sub PromptForRebuildIfNeeded(changeType As String)

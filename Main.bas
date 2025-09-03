@@ -45,6 +45,8 @@ Sub UpdateDashboard()
     Set ws = ThisWorkbook.Sheets("Dashboard")
     
     ' Check if data exists
+    Call DataFileMod.EnsureDataFileReady
+
     dataExists = DataFileMod.TestData.DataExist
 
     ' === Buttons that require data ===
@@ -183,35 +185,60 @@ Public Sub ToggleParticleCounter()
     Dim currentCounter As String
     Dim altCounter As String
     
+    Debug.Print "=== ToggleParticleCounter Start ==="
+    
     currentCounter = GetISO16889SaveResult(8) ' Index 8 = particle counter phrase
+    Debug.Print "Current counter from SaveData: '" & currentCounter & "'"
     
     If currentCounter = "" Then
         MsgBox "Only one particle counter dataset available."
         Exit Sub
     End If
     
+    ' ENSURE DATA EXISTS WITH DIAGNOSTICS
+    Debug.Print "Calling EnsureDataFileReady..."
+    Call DataFileMod.EnsureDataFileReady
+    
+    ' VERIFY OBJECT STATE AFTER ENSURE
+    Debug.Print "After EnsureDataFileReady:"
+    Debug.Print "  DataExist: " & DataFileMod.TestData.DataExist
+    
+    If Not DataFileMod.TestData.DataExist Then
+        MsgBox "Cannot toggle particle counter - no test data loaded.", vbExclamation
+        Exit Sub
+    End If
+    
     Select Case currentCounter
         Case "LB"
-            If hasData(TestData.LS_Sizes) Then
+            Debug.Print "Current is LB - checking for alternates..."
+            If hasData(DataFileMod.TestData.LS_Sizes) Then
                 altCounter = "LS"
-            ElseIf hasData(TestData.LBE_Sizes) Then
+                Debug.Print "  Found LS data"
+            ElseIf hasData(DataFileMod.TestData.LBE_Sizes) Then
                 altCounter = "LBE"
+                Debug.Print "  Found LBE data"
             Else
+                Debug.Print "  No alternate data found"
                 MsgBox "No alternate particle counter data available."
                 Exit Sub
             End If
         Case "LS", "LBE"
+            Debug.Print "Current is " & currentCounter & " - switching to LB"
             altCounter = "LB"
         Case Else
             MsgBox "Unexpected particle counter: " & currentCounter
             Exit Sub
     End Select
     
+    Debug.Print "Switching from " & currentCounter & " to " & altCounter
+    
     ' Save alternate choice
-    SetISO16889SaveUserEntry 8, altCounter
+    Call SetISO16889SaveUserEntry(8, altCounter)
     
     ' Update dashboard
-    UpdateDashboard
+    Call UpdateDashboard
+    
+    Debug.Print "=== ToggleParticleCounter Complete ==="
 End Sub
 
 Public Sub ToggleFilterPressure()

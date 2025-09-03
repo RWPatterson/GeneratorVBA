@@ -541,22 +541,36 @@ Private Function GetISO16889SizeGivenBeta(Beta As Double) As String
     
     On Error GoTo ErrorHandler
     
+    ' ENHANCED: Get current sensor selection from SaveData table (not just class property)
+    Dim currentSensor As String
+    currentSensor = ISO16889Mod.GetISO16889SaveResult(8) ' ID 8 is sensor selection
+    
+    ' Fallback to class property if SaveData table is empty
+    If currentSensor = "" Or currentSensor = "Not Found" Then
+        currentSensor = Me.TerminationSizePhrase
+    End If
+    
+    ' Default to LB if still empty
+    If currentSensor = "" Then currentSensor = "LB"
+    
+    Debug.Print "GetISO16889SizeGivenBeta using sensor: " & currentSensor
+    
     ' Get data directly from class object based on selected sensor
-    Select Case Me.TerminationSizePhrase
+    Select Case UCase(currentSensor)
         Case "LS"
             Sizes = DataFileMod.TestData.LS_Sizes
             betaArray = Me.Beta_LS
         Case "LBE"
             Sizes = DataFileMod.TestData.LBE_Sizes
             betaArray = Me.Beta_LBE
-        Case Else
+        Case Else ' "LB" or default
             Sizes = DataFileMod.TestData.LB_Sizes
             betaArray = Me.Beta_LB
     End Select
     
     ' Validate we have data
     If IsEmpty(Sizes) Or IsEmpty(betaArray) Then
-        Debug.Print "Empty arrays in GetISO16889SizeGivenBeta"
+        Debug.Print "Empty arrays in GetISO16889SizeGivenBeta for sensor: " & currentSensor
         GetISO16889SizeGivenBeta = ""
         Exit Function
     End If
@@ -568,12 +582,12 @@ Private Function GetISO16889SizeGivenBeta(Beta As Double) As String
         sum = 0: count = 0
         For j = 1 To UBound(betaArray, 1)
             If j <= UBound(betaArray, 1) And i <= UBound(betaArray, 2) Then
-                Dim betaValue As Double
+                Dim betaValue As Variant ' Changed to Variant to handle Empty values
                 betaValue = betaArray(j, i)
                 
-                ' Include ALL positive numeric values, including 100000 (high beta cap)
-                If IsNumeric(betaValue) And betaValue > 0 Then
-                    sum = sum + betaValue
+                ' ENHANCED: Handle Empty values from short tests
+                If Not IsEmpty(betaValue) And IsNumeric(betaValue) And CDbl(betaValue) > 0 Then
+                    sum = sum + CDbl(betaValue)
                     count = count + 1
                 End If
             End If
@@ -588,7 +602,7 @@ Private Function GetISO16889SizeGivenBeta(Beta As Double) As String
     Next i
     
     ' Debug output showing ALL beta progression
-    Debug.Print "Average betas for " & Me.TerminationSizePhrase & " (target ß=" & Beta & "):"
+    Debug.Print "Average betas for " & currentSensor & " (target ß=" & Beta & "):"
     For i = 1 To UBound(avgBetas)
         If avgBetas(i) > 0 Then
             If avgBetas(i) >= 100000 Then
@@ -612,7 +626,7 @@ Private Function GetISO16889SizeGivenBeta(Beta As Double) As String
     Next i
     
     If firstValidSize = 0 Then
-        Debug.Print "No valid beta data found"
+        Debug.Print "No valid beta data found for sensor: " & currentSensor
         GetISO16889SizeGivenBeta = ""
         Exit Function
     End If
@@ -702,13 +716,13 @@ Private Function GetISO16889SizeGivenBeta(Beta As Double) As String
     End If
     
     ' If we get here, something went wrong with the bracketing
-    Debug.Print "ERROR: Could not find bracketing values for Beta " & Beta
+    Debug.Print "ERROR: Could not find bracketing values for Beta " & Beta & " in sensor " & currentSensor
     GetISO16889SizeGivenBeta = ""
     Exit Function
     
 ErrorHandler:
     GetISO16889SizeGivenBeta = ""
-    Debug.Print "Error in GetISO16889SizeGivenBeta for beta " & Beta & ": " & Err.Description
+    Debug.Print "Error in GetISO16889SizeGivenBeta for beta " & Beta & " sensor " & currentSensor & ": " & Err.Description
 End Function
 
 '======================================================================
@@ -864,7 +878,7 @@ Private Sub ClearISO16889Data()
     On Error Resume Next
     
     ' Clear the ISO16889Data sheet
-    Sheets("ISO16889Data").UsedRange.Clear
+    Sheets("ISO16889Data").usedRange.Clear
     
     ' Clear cache
     analysisCache.IsValid = False

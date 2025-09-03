@@ -10,26 +10,26 @@ Option Explicit
 
 
 'This sub takes in a 2d array of data, a worksheet destination and a cell
-Sub Array2DToRange(InputArray As Variant, tgtWksheet As String, TgtCell As String)
+Sub Array2DToRange(inputArray As Variant, tgtWksheet As String, TgtCell As String)
 
-    Worksheets(tgtWksheet).Range(TgtCell).Resize(UBound(InputArray, 1), UBound(InputArray, 2)).Value = InputArray
+    Worksheets(tgtWksheet).Range(TgtCell).Resize(UBound(inputArray, 1), UBound(inputArray, 2)).Value = inputArray
     
 End Sub
 
 
 'This sub takes in a 1d array of data, a worksheet destination and a cell and writes it as a column
 
-Sub Array1DToRangeCol(InputArray As Variant, tgtWksheet As String, TgtCell As String)
+Sub Array1DToRangeCol(inputArray As Variant, tgtWksheet As String, TgtCell As String)
     
-    Worksheets(tgtWksheet).Range(TgtCell).Resize(UBound(InputArray, 1), 1).Value = Application.Transpose(InputArray)
+    Worksheets(tgtWksheet).Range(TgtCell).Resize(UBound(inputArray, 1), 1).Value = Application.Transpose(inputArray)
 
 End Sub
 
 
 'This sub takes in a 1d array of data, a worksheet destination and a cell and writes it as a row
-Sub Array1DToRangeRow(InputArray As Variant, tgtWksheet As String, TgtCell As String)
+Sub Array1DToRangeRow(inputArray As Variant, tgtWksheet As String, TgtCell As String)
     
-    Worksheets(tgtWksheet).Range(TgtCell).Resize(1, UBound(InputArray, 1)).Value = InputArray
+    Worksheets(tgtWksheet).Range(TgtCell).Resize(1, UBound(inputArray, 1)).Value = inputArray
 
 End Sub
 
@@ -38,11 +38,11 @@ End Sub
 '********************************************************************************
 
 'Set the elapsed time on all data sheets with non-empty TestData arrays
-Sub TimeArrayToDataSheets(InputArray As Variant, TgtCell As String)
+Sub TimeArrayToDataSheets(inputArray As Variant, TgtCell As String)
 
         If Not IsEmpty(DataFileMod.TestData.analogData) Then
             Sheets("AnalogData").Range("A1").Value = "Elapsed Time"
-            Call Array1DToRangeCol(InputArray, "AnalogData", TgtCell)
+            Call Array1DToRangeCol(inputArray, "AnalogData", TgtCell)
         End If
         
         'Typical count and analog data share elapsed time, but cycle time has a different frequency
@@ -54,20 +54,20 @@ Sub TimeArrayToDataSheets(InputArray As Variant, TgtCell As String)
         If Not IsEmpty(DataFileMod.TestData.LB_Sizes) Then
             Sheets("LB_Up_Counts").Range("A1").Value = "Elapsed Time"
             Sheets("LB_Down_Counts").Range("A1").Value = "Elapsed Time"
-            Call Array1DToRangeCol(InputArray, "LB_Up_Counts", TgtCell)
-            Call Array1DToRangeCol(InputArray, "LB_Down_Counts", TgtCell)
+            Call Array1DToRangeCol(inputArray, "LB_Up_Counts", TgtCell)
+            Call Array1DToRangeCol(inputArray, "LB_Down_Counts", TgtCell)
         End If
         
         If Not IsEmpty(DataFileMod.TestData.LBE_Sizes) Then
             Sheets("LBE_Down_Counts").Range("A1").Value = "Elapsed Time"
-            Call Array1DToRangeCol(InputArray, "LBE_Down_Counts", TgtCell)
+            Call Array1DToRangeCol(inputArray, "LBE_Down_Counts", TgtCell)
         End If
         
         If Not IsEmpty(DataFileMod.TestData.LS_Sizes) Then
             Sheets("LS_Up_Counts").Range("A1").Value = "Elapsed Time"
             Sheets("LS_Down_Counts").Range("A1").Value = "Elapsed Time"
-            Call Array1DToRangeCol(InputArray, "LS_Up_Counts", TgtCell)
-            Call Array1DToRangeCol(InputArray, "LS_Down_Counts", TgtCell)
+            Call Array1DToRangeCol(inputArray, "LS_Up_Counts", TgtCell)
+            Call Array1DToRangeCol(inputArray, "LS_Down_Counts", TgtCell)
         End If
 End Sub
 
@@ -134,7 +134,7 @@ Sub DeleteDataTables(TgtCell As String)
     
     ' Original clearing logic (unchanged)
     If Not IsEmpty(Sheets("HeaderData").Range(TgtCell)) Then
-        Sheets("HeaderData").UsedRange.Clear
+        Sheets("HeaderData").usedRange.Clear
         Sheets("HeaderData").Visible = xlSheetHidden
     End If
     
@@ -185,11 +185,29 @@ Private Sub ClearUserEntrySaveDataTable(ws As String, tableName As String)
     End If
 End Sub
 
-
+Public Function CleanArrayForExcel(inputArray As Variant) As Variant
+    Dim cleanArray As Variant
+    Dim i As Long, j As Long
+    
+    ' Create copy of input array
+    ReDim cleanArray(1 To UBound(inputArray, 1), 1 To UBound(inputArray, 2))
+    
+    For i = 1 To UBound(inputArray, 1)
+        For j = 1 To UBound(inputArray, 2)
+            If IsEmpty(inputArray(i, j)) Then
+                cleanArray(i, j) = ""  ' Excel displays blank cells as empty, not "Empty"
+            Else
+                cleanArray(i, j) = inputArray(i, j)
+            End If
+        Next j
+    Next i
+    
+    CleanArrayForExcel = cleanArray
+End Function
 
 Public Sub DisposeData(TgtCell As String)
     Call TableMod.DeleteDataTables(TgtCell)
-    Sheets("HeaderData").UsedRange.Clear
+    Sheets("HeaderData").usedRange.Clear
     Set DataFileMod.TestData = Nothing
 End Sub
 
@@ -357,7 +375,7 @@ End Sub
 '********************************************************************************
 
 'WkSheet As String, TblName As String, TblKey As String)
-Function GetArrayFromTable(wkSheet As String, tblName As String, TblKey As String) As Variant
+Function GetArrayFromTable(wkSheet As String, tblName As String, tblKey As String) As Variant
     
     Dim ws As Worksheet
     Dim tbl As ListObject
@@ -371,7 +389,7 @@ Function GetArrayFromTable(wkSheet As String, tblName As String, TblKey As Strin
     Set ws = Sheets(wkSheet)
     Set tbl = ws.ListObjects(tblName)
     
-    Set columnRange = tbl.ListColumns(TblKey).DataBodyRange
+    Set columnRange = tbl.ListColumns(tblKey).DataBodyRange
 
     dataArray = columnRange.Value
         
@@ -388,7 +406,7 @@ ErrorHandler:
 End Function
 
 'WkSheet As String, TblName As String, TblKey As String)
-Public Function GetValueFromTable(wkSheet As String, tblName As String, TblKey As String, ValueIndex As Integer) As Variant
+Public Function GetValueFromTable(wkSheet As String, tblName As String, tblKey As String, valueIndex As Integer) As Variant
     Dim ws As Worksheet
     Dim tbl As ListObject
     Dim columnRange As Range
@@ -399,7 +417,7 @@ Public Function GetValueFromTable(wkSheet As String, tblName As String, TblKey A
     Set ws = Sheets(wkSheet)
     Set tbl = ws.ListObjects(tblName)
     
-    GetValueFromTable = tbl.ListColumns(TblKey).DataBodyRange(ValueIndex, 1)
+    GetValueFromTable = tbl.ListColumns(tblKey).DataBodyRange(valueIndex, 1)
     
 ExitFunction:
     Exit Function
@@ -411,17 +429,17 @@ ErrorHandler:
     
 End Function
 
-Function GetValueFromTableObj(tbl As ListObject, TblKey As String, ValueIndex As Long) As Variant
+Function GetValueFromTableObj(tbl As ListObject, tblKey As String, valueIndex As Long) As Variant
     On Error GoTo ErrorHandler
-    GetValueFromTableObj = tbl.ListColumns(TblKey).DataBodyRange(ValueIndex, 1)
+    GetValueFromTableObj = tbl.ListColumns(tblKey).DataBodyRange(valueIndex, 1)
     Exit Function
 ErrorHandler:
     GetValueFromTableObj = "Not Found"
 End Function
 
-Sub SetValueInTableObj(tbl As ListObject, TblKey As String, ValueIndex As Long, newValue As Variant)
+Sub SetValueInTableObj(tbl As ListObject, tblKey As String, valueIndex As Long, newValue As Variant)
     On Error GoTo ErrorHandler
-    tbl.ListColumns(TblKey).DataBodyRange(ValueIndex, 1).Value = newValue
+    tbl.ListColumns(tblKey).DataBodyRange(valueIndex, 1).Value = newValue
     Exit Sub
 ErrorHandler:
     MsgBox "SetValueInTable Error: cell not found or other error.", vbExclamation
