@@ -40,6 +40,8 @@ End Sub
 'Set the elapsed time on all data sheets with non-empty TestData arrays
 Sub TimeArrayToDataSheets(inputArray As Variant, TgtCell As String)
 
+    If Not DataFileMod.EnsureTestDataReady() Then Exit Sub
+
         If Not IsEmpty(DataFileMod.TestData.analogData) Then
             Sheets("AnalogData").Range("A1").Value = "Elapsed Time"
             Call Array1DToRangeCol(inputArray, "AnalogData", TgtCell)
@@ -75,6 +77,8 @@ End Sub
 'Then writes them to their respective worksheets.
 Sub TestDataToSheets(TgtCell As String)
         
+    If Not DataFileMod.EnsureTestDataReady() Then Exit Sub
+        
         If Not IsEmpty(DataFileMod.TestData.analogData) Then
             Call Array2DToRange(TestData.analogData, "AnalogData", TgtCell)
         End If
@@ -99,6 +103,9 @@ Sub TestDataToSheets(TgtCell As String)
 End Sub
 
 Sub DataTagsToSheets(TgtCell As String)
+        
+    If Not DataFileMod.EnsureTestDataReady() Then Exit Sub
+        
         If Not IsEmpty(DataFileMod.TestData.AnalogTags) Then
             Call Array1DToRangeRow(TestData.AnalogTags, "AnalogData", TgtCell)
         End If
@@ -296,7 +303,7 @@ Sub HeaderDataToSheet(TgtSheet As String)
     Dim j As Integer
     Dim k As Integer
     
-    If Not IsEmpty(DataFileMod.TestData.HeaderData) Then
+    If DataFileMod.EnsureTestDataReady() And Not IsEmpty(DataFileMod.TestData.HeaderData) Then
         For i = 0 To UBound(DataFileMod.TestData.HeaderData, 2) - 1
             If Left(DataFileMod.TestData.HeaderData(0, i), 1) = ";" Then
                 SectCount = SectCount + 1

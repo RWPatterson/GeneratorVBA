@@ -45,7 +45,7 @@ Sub UpdateDashboard()
     Set ws = ThisWorkbook.Sheets("Dashboard")
     
     ' Check if data exists
-    Call DataFileMod.EnsureDataFileReady
+    Call DataFileMod.EnsureTestDataReady
 
     dataExists = DataFileMod.TestData.DataExist
 
@@ -197,7 +197,7 @@ Public Sub ToggleParticleCounter()
     
     ' ENSURE DATA EXISTS WITH DIAGNOSTICS
     Debug.Print "Calling EnsureDataFileReady..."
-    Call DataFileMod.EnsureDataFileReady
+    Call DataFileMod.EnsureTestDataReady
     
     ' VERIFY OBJECT STATE AFTER ENSURE
     Debug.Print "After EnsureDataFileReady:"

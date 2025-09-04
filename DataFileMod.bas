@@ -1,5 +1,4 @@
 Attribute VB_Name = "DataFileMod"
-Attribute VB_Name = "DataFileMod"
 Option Explicit
 ' Modern DataFileMod - Enhanced Object Management
 ' Robust TestData lifecycle management with automatic recovery

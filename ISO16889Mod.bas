@@ -18,10 +18,9 @@ Public Sub SetupISO16889ClassModule()
     ' Always create a fresh instance (disposal handled in CleanupBeforeNewFile)
     Set ISO16889ReportData = New ISO16889ClassMod
     Set ISO16889ReportData.WorkbookInstance = ThisWorkbook
-    
-    Call DataFileMod.EnsureDataFileReady
-    
-    If DataFileMod.TestData.DataExist Then
+        
+
+    If DataFileMod.EnsureTestDataReady() Then
         ' CRITICAL: Validate file compatibility first
         If Not ISO16889ReportData.ValidateFileCompatibility() Then
             ' Exit completely - incompatible file
