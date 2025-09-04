@@ -12,26 +12,176 @@ End Sub
 
 
 Public Sub GenerateReport()
-'This code is called by the workbook open function in the ThisWorkbook excel object.
-
-Application.ScreenUpdating = False
-
-    'create DataFile class mod and parse data if present
-        DataFileMod.ProcessDataFile
-        
-    'perform standard specific operations
-        Call ProcessCurrentStandard
+    DevToolsMod.TimerStartCount
+    DevToolsMod.OptimizePerformance True
     
-   ' Update the Dashboard buttons/appearance based on data presence
-        UpdateDashboard
+    On Error GoTo CleanExit
     
-    'Show Dashboard
-    Sheets("Dashboard").Select
+    Debug.Print "=== WORKBOOK INITIALIZATION STARTED ==="
     
-Application.ScreenUpdating = True
-
+    ' STEP 1: Ensure basic object structure exists
+    Call EnsureBasicObjects
+    
+    ' STEP 2: Check if we have raw data that needs processing
+    If DataFileMod.ShouldProcessRawData() Then
+        Debug.Print "Raw data detected - processing file..."
+        Call ProcessDataFileAndStandards
+    Else
+        Debug.Print "No unprocessed raw data found"
+        ' Objects exist but no data to process - normal for empty template
+    End If
+    
+    ' STEP 3: Update any dashboard or UI elements
+    Call UpdateWorkbookUI
+    
+    Debug.Print "=== WORKBOOK INITIALIZATION COMPLETED ==="
+    
+CleanExit:
+    DevToolsMod.OptimizePerformance False
+    DevToolsMod.TimerEndCount "Complete Workbook Initialization"
+    If Err.Number <> 0 Then
+        Debug.Print "GenerateReport Error: " & Err.Description
+        MsgBox "Workbook initialization encountered an error: " & Err.Description, vbExclamation
+    End If
 End Sub
 
+' Step 1: Ensure basic object structure exists (recovery function)
+Private Sub EnsureBasicObjects()
+    DevToolsMod.TimerStartCount
+    
+    ' This just ensures TestData object exists and is valid
+    ' It does NOT attempt to process any data
+    If Not DataFileMod.EnsureTestDataReady() Then
+        Debug.Print "Error: Could not establish TestData object"
+    Else
+        Debug.Print "TestData object ready - Status: " & IIf(DataFileMod.TestData.DataExist, "Contains Data", "Empty")
+        
+        ' ADDED: Additional debugging
+        Debug.Print "TestData details:"
+        Debug.Print "  - FileName: '" & DataFileMod.TestData.FileName & "'"
+        Debug.Print "  - TestType: '" & DataFileMod.TestData.testType & "'"
+        Debug.Print "  - DataRowCount: " & DataFileMod.TestData.DataRowCount
+        Debug.Print "  - Object is valid and ready for use"
+    End If
+    
+    DevToolsMod.TimerEndCount "Basic Objects Check"
+End Sub
+
+' Step 2: Process data file and set up standards (only when needed)
+Private Sub ProcessDataFileAndStandards()
+    DevToolsMod.TimerStartCount
+    
+    ' Process the raw data file
+    Debug.Print "Processing data file..."
+    Call DataFileMod.ProcessDataFile
+    
+    ' Verify processing was successful
+    If Not DataFileMod.TestData.DataExist Then
+        Debug.Print "Warning: Data processing failed"
+        DevToolsMod.TimerEndCount "Data Processing (FAILED)"
+        Exit Sub
+    End If
+    
+    Debug.Print "Data processing completed successfully"
+    Debug.Print "File: " & DataFileMod.TestData.FileName & " (" & DataFileMod.TestData.testType & ")"
+    
+    ' Set up ISO 16889 analysis (or other standards)
+    Debug.Print "Setting up ISO 16889 analysis..."
+    Call ISO16889Mod.SetupISO16889ClassModule
+    
+    DevToolsMod.TimerEndCount "Data Processing and Standards Setup"
+End Sub
+
+' Step 3: Update UI and dashboard elements
+Private Sub UpdateWorkbookUI()
+    DevToolsMod.TimerStartCount
+    
+    ' Update any dashboard elements, charts, or UI components
+    ' This is where you'd put any chart updates, dashboard refreshes, etc.
+    
+    ' Example: Update charts if data exists
+    If DataFileMod.EnsureTestDataReady() And DataFileMod.TestData.DataExist Then
+        ' Only update charts if we have processed data
+        Call Charts.UpdateCharts
+        Debug.Print "Charts updated"
+    End If
+    
+    ' Set active sheet to Dashboard or Home
+    On Error Resume Next
+    If WorksheetExists("Dashboard") Then
+        Sheets("Dashboard").Select
+    ElseIf WorksheetExists("Home") Then
+        Sheets("Home").Select
+    End If
+    On Error GoTo 0
+    
+    DevToolsMod.TimerEndCount "UI Updates"
+End Sub
+
+'======================================================================
+'================ FILE OPERATIONS ===================================
+'======================================================================
+
+' Main function for opening new data files (called from forms)
+Public Function LoadNewDataFile() As Boolean
+    DevToolsMod.TimerStartCount
+    LoadNewDataFile = False
+    
+    On Error GoTo LoadFailed
+    
+    Debug.Print "=== LOADING NEW DATA FILE ==="
+    
+    ' Step 1: Open and load the file
+    If Not File_Subs.OpenDataFile() Then
+        Debug.Print "File opening was cancelled or failed"
+        GoTo LoadFailed
+    End If
+    
+    ' Step 2: Process the newly loaded data
+    Call ProcessDataFileAndStandards
+    
+    ' Step 3: Verify success
+    If Not DataFileMod.TestData.DataExist Then
+        MsgBox "Data file loaded but processing failed. Please check the file format.", vbExclamation
+        GoTo LoadFailed
+    End If
+    
+    ' Step 4: Update UI
+    Call UpdateWorkbookUI
+    
+    LoadNewDataFile = True
+    Debug.Print "=== NEW DATA FILE LOADED SUCCESSFULLY ==="
+    DevToolsMod.TimerEndCount "New Data File Loading"
+    Exit Function
+    
+LoadFailed:
+    Debug.Print "=== DATA FILE LOADING FAILED ==="
+    DevToolsMod.TimerEndCount "New Data File Loading (FAILED)"
+    LoadNewDataFile = False
+End Function
+
+' Force refresh of all analysis (for dashboard "Rebuild" buttons)
+Public Sub ForceCompleteRefresh()
+    DevToolsMod.TimerStartCount
+    
+    Debug.Print "=== FORCING COMPLETE REFRESH ==="
+    
+    ' Clear any cached analysis
+    If Not ISO16889Mod.ISO16889ReportData Is Nothing Then
+        Call ISO16889Mod.ISO16889ReportData.InvalidateCache
+    End If
+    
+    ' Rebuild everything if we have data
+    If DataFileMod.EnsureTestDataReady() And DataFileMod.TestData.DataExist Then
+        Call ISO16889Mod.SetupISO16889ClassModule
+        Call UpdateWorkbookUI
+        Debug.Print "Complete refresh completed"
+    Else
+        Debug.Print "No data available for refresh"
+    End If
+    
+    DevToolsMod.TimerEndCount "Complete Refresh"
+End Sub
 
 'Todo: Update can't update the name of the data file in the text box on first launch.
 Sub UpdateDashboard()
@@ -279,5 +429,76 @@ Public Sub ToggleReportUnits()
     UpdateDashboard
 End Sub
 
+'======================================================================
+'================ FORM INTEGRATION ==================================
+'======================================================================
 
+' Function for forms to check if data is available
+Public Function hasProcessedData() As Boolean
+    hasProcessedData = (DataFileMod.EnsureTestDataReady() And DataFileMod.TestData.DataExist)
+End Function
+
+' Function for forms to get data status text
+Public Function GetDataStatusText() As String
+    If hasProcessedData() Then
+        GetDataStatusText = "File: " & DataFileMod.TestData.FileName & " (" & DataFileMod.TestData.testType & ")"
+    Else
+        GetDataStatusText = "No data file loaded"
+    End If
+End Function
+
+Public Function GetWorkbookStatus() As String
+    Dim status As String
+    
+    status = "=== WORKBOOK STATUS ===" & vbCrLf
+    status = status & "TestData: " & DataFileMod.GetTestDataStatus() & vbCrLf
+    
+    If Not ISO16889Mod.ISO16889ReportData Is Nothing Then
+        status = status & "ISO16889: Object exists" & vbCrLf
+        status = status & "  - Termination DP: " & ISO16889Mod.ISO16889ReportData.TerminationDP & vbCrLf
+        status = status & "  - Termination Time: " & ISO16889Mod.ISO16889ReportData.TerminationTime & vbCrLf
+    Else
+        status = status & "ISO16889: No object" & vbCrLf
+    End If
+    
+    GetWorkbookStatus = status
+End Function
+
+Public Sub RunDiagnostics()
+    Debug.Print GetWorkbookStatus()
+    
+    ' Test data validation
+    If DataFileMod.ValidateTestDataIntegrity() Then
+        Debug.Print "Data integrity: PASSED"
+    Else
+        Debug.Print "Data integrity: FAILED"
+    End If
+End Sub
+
+Private Function WorksheetExists(wsName As String) As Boolean
+    On Error Resume Next
+    WorksheetExists = (Sheets(wsName).Name = wsName)
+    On Error GoTo 0
+End Function
+
+' Save file function (can be called from forms)
+Public Function SaveFile() As Boolean
+    SaveFile = False
+    
+    On Error GoTo SaveFailed
+    
+    If hasProcessedData() Then
+        Call File_Subs.SaveAsReport
+        SaveFile = True
+    Else
+        Call File_Subs.SaveAsTemplate
+        SaveFile = True
+    End If
+    
+    Exit Function
+    
+SaveFailed:
+    MsgBox "Save operation failed: " & Err.Description, vbCritical
+    SaveFile = False
+End Function
 

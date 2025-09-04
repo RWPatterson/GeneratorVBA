@@ -58,13 +58,18 @@ Public DataRepeatCount As Long 'How many rows in each data record
 Public DataRowCount As Long 'How many rows total
 Public CycleDataRowCount As Long 'How many rows of cyclic data total
 
+
 'When the DataFile object is created, it will test for data existing in the rawdata sheet, then call DataFileExplorer functions to fill its data arrays.
 Private Sub Class_Initialize()
-    'Standard Test Data check
+    'Standard Test Data check - FIXED: Only check if raw data EXISTS, not if it's been PROCESSED
     If Sheets("RawData").Range("A1") = "HEADER" Then
-        DataExist = True
+        ' Raw data exists, but we haven't processed it yet
+        ' DataExist should only be True AFTER processing is complete
+        DataExist = False  ' FIXED: Changed from True to False
+        Debug.Print "DataFileClassMod: Raw data detected but not yet processed"
     Else
         DataExist = False
+        Debug.Print "DataFileClassMod: No raw data detected"
     End If
     
     'Cycle Test Data check
@@ -74,6 +79,7 @@ Private Sub Class_Initialize()
         CycleDataExist = False
     End If
     
+    Debug.Print "DataFileClassMod initialized: DataExist=" & DataExist & ", CycleDataExist=" & CycleDataExist
 End Sub
 
 ' Helper function to get the index of the AnalogTag in the AnalogTags array

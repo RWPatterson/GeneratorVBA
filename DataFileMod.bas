@@ -25,14 +25,15 @@ Private Const CACHE_MISS As Long = -1
 '================ PUBLIC INTERFACE FUNCTIONS ========================
 '======================================================================
 
-' Main entry point for ensuring TestData is ready for use
+' This function only VALIDATES and RECOVERS - it does NOT process data
 Public Function EnsureTestDataReady() As Boolean
     DevToolsMod.TimerStartCount
     
     ' STEP 1: Check if object exists and is valid
     If IsTestDataObjectValid() Then
         DevToolsMod.TimerEndCount "TestData Ready (existing valid object)"
-        EnsureTestDataReady = TestData.DataExist
+        ' FIXED: Return True if object is valid, regardless of whether it has data
+        EnsureTestDataReady = True
         Exit Function
     End If
     
@@ -43,22 +44,68 @@ Public Function EnsureTestDataReady() As Boolean
         Exit Function
     End If
     
-    ' STEP 3: Check if RawData sheet has data waiting to be processed
-    Dim hasRawData As Boolean
-    hasRawData = SheetExists("RawData") And (Sheets("RawData").Cells(1, 1).Value = "HEADER")
+    ' STEP 3: Object exists, return success
+    ' FIXED: Return True because we successfully have a valid object
+    DevToolsMod.TimerEndCount "TestData Ready (object recovered)"
+    EnsureTestDataReady = True
+End Function
+
+'Function specifically for Main.GenerateReport to check if processing needed
+Public Function ShouldProcessRawData() As Boolean
+    Debug.Print "ShouldProcessRawData: Starting check..."
     
-    If hasRawData And Not TestData.DataExist Then
-        ' Raw data exists but TestData not populated - process it
-        Debug.Print "EnsureTestDataReady: Found unprocessed data, processing now..."
-        Call ProcessDataFile
-    ElseIf Not hasRawData Then
-        ' No raw data available
-        TestData.DataExist = False
-        Debug.Print "EnsureTestDataReady: No raw data available"
+    ' Ensure object exists first
+    If Not EnsureTestDataReady() Then
+        Debug.Print "ShouldProcessRawData: No valid TestData object"
+        ShouldProcessRawData = False
+        Exit Function
     End If
     
-    DevToolsMod.TimerEndCount "TestData Ready (processed)"
-    EnsureTestDataReady = TestData.DataExist
+    ' Check if RawData sheet has data waiting to be processed
+    Dim hasRawData As Boolean
+    hasRawData = False
+    
+    If SheetExists("RawData") Then
+        Dim headerValue As Variant
+        headerValue = Sheets("RawData").Cells(1, 1).Value
+        Debug.Print "ShouldProcessRawData: RawData A1 = '" & headerValue & "'"
+        
+        hasRawData = (CStr(headerValue) = "HEADER")
+        
+        If hasRawData Then
+            ' Also check if there's sufficient data
+            Dim usedRows As Long
+            usedRows = Sheets("RawData").usedRange.Rows.count
+            Debug.Print "ShouldProcessRawData: RawData has " & usedRows & " rows"
+            hasRawData = (usedRows >= 10)
+        End If
+    Else
+        Debug.Print "ShouldProcessRawData: RawData sheet does not exist"
+    End If
+    
+    ' FIXED: Check if data has been actually PROCESSED, not just if object says DataExist
+    ' Look for evidence of actual processing - populated arrays and properties
+    Dim hasProcessedData As Boolean
+    hasProcessedData = False
+    
+    If TestData.DataExist Then
+        ' Additional checks to ensure data is actually processed
+        hasProcessedData = (TestData.FileName <> "" And _
+                           TestData.testType <> "" And _
+                           TestData.DataRowCount > 0)
+        Debug.Print "ShouldProcessRawData: hasProcessedData = " & hasProcessedData
+        Debug.Print "  - FileName: '" & TestData.FileName & "'"
+        Debug.Print "  - testType: '" & TestData.testType & "'"
+        Debug.Print "  - DataRowCount: " & TestData.DataRowCount
+    End If
+    
+    Debug.Print "ShouldProcessRawData: hasRawData = " & hasRawData
+    Debug.Print "ShouldProcessRawData: hasProcessedData = " & hasProcessedData
+    
+    ' Return true if we have raw data but no properly processed data
+    ShouldProcessRawData = (hasRawData And Not hasProcessedData)
+    
+    Debug.Print "ShouldProcessRawData: Final result = " & ShouldProcessRawData
 End Function
 
 ' Main data file processing - enhanced with better error handling
@@ -108,6 +155,7 @@ CleanExit:
     End If
 End Sub
 
+
 '======================================================================
 '================ OBJECT LIFECYCLE MANAGEMENT =======================
 '======================================================================
@@ -138,6 +186,7 @@ ObjectInvalid:
     IsTestDataObjectValid = False
 End Function
 
+
 ' Create new TestData object or recover existing one
 Private Function CreateOrRecoverTestDataObject() As Boolean
     On Error GoTo CreateFailed
@@ -159,8 +208,14 @@ Private Function CreateOrRecoverTestDataObject() As Boolean
     
     ' Initialize object properties
     Set TestData.WorkbookInstance = ThisWorkbook
-    TestData.DataExist = False
+    
+    ' CRITICAL FIX: Don't set DataExist = False here, let the class initialize itself
+    ' The class constructor will properly check the RawData sheet
+    ' TestData.DataExist = False  <-- REMOVE THIS LINE
+    
     TestData.CycleDataExist = (SheetExists("RawCycleData") And Sheets("RawCycleData").Cells(1, 1).Value = ";Data Format:")
+    
+    Debug.Print "CreateOrRecoverTestDataObject: TestData.DataExist after init = " & TestData.DataExist
     
     CreateOrRecoverTestDataObject = True
     Exit Function

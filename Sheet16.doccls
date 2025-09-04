@@ -175,6 +175,47 @@ Private Function ValidateDPOverride(newDP As Double) As Boolean
     End If
 End Function
 
+Private Sub ValidateAndApplyDPOverride(newDP As Variant)
+    ' Add comprehensive type checking to prevent mismatch errors
+    If IsEmpty(newDP) Or newDP = "" Then
+        Debug.Print "DP override is empty"
+        Exit Sub
+    End If
+    
+    If Not IsNumeric(newDP) Then
+        Debug.Print "DP override is not numeric: " & newDP & " (Type: " & TypeName(newDP) & ")"
+        Exit Sub
+    End If
+    
+    If ISO16889Mod.ISO16889ReportData Is Nothing Then
+        Debug.Print "ISO16889ReportData is Nothing, skipping DP validation"
+        Exit Sub
+    End If
+    
+    Dim dpValue As Double
+    On Error GoTo ConversionError
+    dpValue = CDbl(newDP)
+    On Error GoTo 0
+    
+    Dim actualTerminationDP As Double
+    actualTerminationDP = ISO16889Mod.ISO16889ReportData.GetActualTerminationDP()
+    
+    If ISO16889Mod.ISO16889ReportData.IsValidDPOverride(dpValue) Then
+        Call ISO16889Mod.ISO16889ReportData.InvalidateCache
+        Call PromptForISO16889Rebuild("DP override")
+    Else
+        MsgBox "Invalid DP override: " & dpValue & vbCrLf & vbCrLf & _
+               "Maximum allowed value: " & actualTerminationDP & vbCrLf & _
+               "You can only trim data to a lower termination point, not extrapolate beyond the actual test termination.", _
+               vbExclamation, "DP Override Validation"
+    End If
+    Exit Sub
+    
+ConversionError:
+    Debug.Print "Error converting DP value to Double: " & Err.Description
+End Sub
+
+
 Private Function ValidateFilterSelection(newFilter As Integer) As Boolean
     If ISO16889Mod.ISO16889ReportData Is Nothing Then
         ValidateFilterSelection = True
@@ -194,6 +235,46 @@ Private Function ValidateFilterSelection(newFilter As Integer) As Boolean
         ValidateFilterSelection = False
     End If
 End Function
+
+Private Sub ValidateAndApplyFilterOverride(newFilter As Variant)
+    ' Add comprehensive type checking
+    If IsEmpty(newFilter) Or newFilter = "" Then
+        Debug.Print "Filter override is empty"
+        Exit Sub
+    End If
+    
+    If Not IsNumeric(newFilter) Then
+        Debug.Print "Filter override is not numeric: " & newFilter & " (Type: " & TypeName(newFilter) & ")"
+        Exit Sub
+    End If
+    
+    If ISO16889Mod.ISO16889ReportData Is Nothing Then
+        Debug.Print "ISO16889ReportData is Nothing, skipping filter validation"
+        Exit Sub
+    End If
+    
+    Dim filterValue As Integer
+    On Error GoTo ConversionError
+    filterValue = CInt(newFilter)
+    On Error GoTo 0
+    
+    If ISO16889Mod.ISO16889ReportData.IsValidFilterChoice(filterValue) Then
+        Call ISO16889Mod.ISO16889ReportData.InvalidateCache
+        Call PromptForISO16889Rebuild("filter selection")
+    Else
+        Dim availableFilters As String
+        availableFilters = ISO16889Mod.ISO16889ReportData.GetAvailableFilterOptions()
+        
+        MsgBox "Invalid filter selection: Filter " & filterValue & vbCrLf & vbCrLf & _
+               "Available filters: " & availableFilters & vbCrLf & _
+               "Filter " & filterValue & " data is not available in this test file.", _
+               vbExclamation, "Filter Selection Validation"
+    End If
+    Exit Sub
+    
+ConversionError:
+    Debug.Print "Error converting filter value to Integer: " & Err.Description
+End Sub
 
 Private Function ValidateSensorSelection(newSensor As String) As Boolean
     If ISO16889Mod.ISO16889ReportData Is Nothing Then

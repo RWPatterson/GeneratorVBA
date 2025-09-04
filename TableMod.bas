@@ -8,29 +8,19 @@ Option Explicit
 'Simple array to sheet functions, assign range on sheet values to array values.
 '********************************************************
 
-
 'This sub takes in a 2d array of data, a worksheet destination and a cell
 Sub Array2DToRange(inputArray As Variant, tgtWksheet As String, TgtCell As String)
-
     Worksheets(tgtWksheet).Range(TgtCell).Resize(UBound(inputArray, 1), UBound(inputArray, 2)).Value = inputArray
-    
 End Sub
-
 
 'This sub takes in a 1d array of data, a worksheet destination and a cell and writes it as a column
-
 Sub Array1DToRangeCol(inputArray As Variant, tgtWksheet As String, TgtCell As String)
-    
     Worksheets(tgtWksheet).Range(TgtCell).Resize(UBound(inputArray, 1), 1).Value = Application.Transpose(inputArray)
-
 End Sub
-
 
 'This sub takes in a 1d array of data, a worksheet destination and a cell and writes it as a row
 Sub Array1DToRangeRow(inputArray As Variant, tgtWksheet As String, TgtCell As String)
-    
     Worksheets(tgtWksheet).Range(TgtCell).Resize(1, UBound(inputArray, 1)).Value = inputArray
-
 End Sub
 
 '********************************************************************************
@@ -39,94 +29,95 @@ End Sub
 
 'Set the elapsed time on all data sheets with non-empty TestData arrays
 Sub TimeArrayToDataSheets(inputArray As Variant, TgtCell As String)
-
+    ' FIXED: Only check object validity, don't try to process data
     If Not DataFileMod.EnsureTestDataReady() Then Exit Sub
 
-        If Not IsEmpty(DataFileMod.TestData.analogData) Then
-            Sheets("AnalogData").Range("A1").Value = "Elapsed Time"
-            Call Array1DToRangeCol(inputArray, "AnalogData", TgtCell)
-        End If
-        
-        'Typical count and analog data share elapsed time, but cycle time has a different frequency
-        If Not IsEmpty(DataFileMod.TestData.cycleAnalogData) Then
-            Sheets("CycleAnalogData").Range("A1").Value = "Elapsed Time"
-            Call Array1DToRangeCol(TestData.CycleTimes, "CycleAnalogData", TgtCell)
-        End If
-        
-        If Not IsEmpty(DataFileMod.TestData.LB_Sizes) Then
-            Sheets("LB_Up_Counts").Range("A1").Value = "Elapsed Time"
-            Sheets("LB_Down_Counts").Range("A1").Value = "Elapsed Time"
-            Call Array1DToRangeCol(inputArray, "LB_Up_Counts", TgtCell)
-            Call Array1DToRangeCol(inputArray, "LB_Down_Counts", TgtCell)
-        End If
-        
-        If Not IsEmpty(DataFileMod.TestData.LBE_Sizes) Then
-            Sheets("LBE_Down_Counts").Range("A1").Value = "Elapsed Time"
-            Call Array1DToRangeCol(inputArray, "LBE_Down_Counts", TgtCell)
-        End If
-        
-        If Not IsEmpty(DataFileMod.TestData.LS_Sizes) Then
-            Sheets("LS_Up_Counts").Range("A1").Value = "Elapsed Time"
-            Sheets("LS_Down_Counts").Range("A1").Value = "Elapsed Time"
-            Call Array1DToRangeCol(inputArray, "LS_Up_Counts", TgtCell)
-            Call Array1DToRangeCol(inputArray, "LS_Down_Counts", TgtCell)
-        End If
+    If Not IsEmpty(DataFileMod.TestData.analogData) Then
+        Sheets("AnalogData").Range("A1").Value = "Elapsed Time"
+        Call Array1DToRangeCol(inputArray, "AnalogData", TgtCell)
+    End If
+    
+    'Typical count and analog data share elapsed time, but cycle time has a different frequency
+    If Not IsEmpty(DataFileMod.TestData.cycleAnalogData) Then
+        Sheets("CycleAnalogData").Range("A1").Value = "Elapsed Time"
+        Call Array1DToRangeCol(DataFileMod.TestData.CycleTimes, "CycleAnalogData", TgtCell)
+    End If
+    
+    If Not IsEmpty(DataFileMod.TestData.LB_Sizes) Then
+        Sheets("LB_Up_Counts").Range("A1").Value = "Elapsed Time"
+        Sheets("LB_Down_Counts").Range("A1").Value = "Elapsed Time"
+        Call Array1DToRangeCol(inputArray, "LB_Up_Counts", TgtCell)
+        Call Array1DToRangeCol(inputArray, "LB_Down_Counts", TgtCell)
+    End If
+    
+    If Not IsEmpty(DataFileMod.TestData.LBE_Sizes) Then
+        Sheets("LBE_Down_Counts").Range("A1").Value = "Elapsed Time"
+        Call Array1DToRangeCol(inputArray, "LBE_Down_Counts", TgtCell)
+    End If
+    
+    If Not IsEmpty(DataFileMod.TestData.LS_Sizes) Then
+        Sheets("LS_Up_Counts").Range("A1").Value = "Elapsed Time"
+        Sheets("LS_Down_Counts").Range("A1").Value = "Elapsed Time"
+        Call Array1DToRangeCol(inputArray, "LS_Up_Counts", TgtCell)
+        Call Array1DToRangeCol(inputArray, "LS_Down_Counts", TgtCell)
+    End If
 End Sub
 
-'This sub takes all of the arrays which have data in the class module
+
+'FIXED: This sub takes all of the arrays which have data in the class module
 'Then writes them to their respective worksheets.
 Sub TestDataToSheets(TgtCell As String)
-        
+    ' FIXED: Only check object validity, don't try to process data
     If Not DataFileMod.EnsureTestDataReady() Then Exit Sub
         
-        If Not IsEmpty(DataFileMod.TestData.analogData) Then
-            Call Array2DToRange(TestData.analogData, "AnalogData", TgtCell)
-        End If
-        
-        If Not IsEmpty(DataFileMod.TestData.cycleAnalogData) Then
-            Call Array2DToRange(TestData.cycleAnalogData, "CycleAnalogData", TgtCell)
-        End If
-        
-        If Not IsEmpty(DataFileMod.TestData.LB_Sizes) Then
-            Call Array2DToRange(TestData.LBU_CountsData, "LB_Up_Counts", TgtCell)
-            Call Array2DToRange(TestData.LBD_CountsData, "LB_Down_Counts", TgtCell)
-        End If
-        
-        If Not IsEmpty(DataFileMod.TestData.LBE_Sizes) Then
-            Call Array2DToRange(TestData.LBE_CountsData, "LBE_Down_Counts", TgtCell)
-        End If
-        
-        If Not IsEmpty(DataFileMod.TestData.LS_Sizes) Then
-            Call Array2DToRange(TestData.LSU_CountsData, "LS_Up_Counts", TgtCell)
-            Call Array2DToRange(TestData.LSD_CountsData, "LS_Down_Counts", TgtCell)
-        End If
+    If Not IsEmpty(DataFileMod.TestData.analogData) Then
+        Call Array2DToRange(DataFileMod.TestData.analogData, "AnalogData", TgtCell)
+    End If
+    
+    If Not IsEmpty(DataFileMod.TestData.cycleAnalogData) Then
+        Call Array2DToRange(DataFileMod.TestData.cycleAnalogData, "CycleAnalogData", TgtCell)
+    End If
+    
+    If Not IsEmpty(DataFileMod.TestData.LB_Sizes) Then
+        Call Array2DToRange(DataFileMod.TestData.LBU_CountsData, "LB_Up_Counts", TgtCell)
+        Call Array2DToRange(DataFileMod.TestData.LBD_CountsData, "LB_Down_Counts", TgtCell)
+    End If
+    
+    If Not IsEmpty(DataFileMod.TestData.LBE_Sizes) Then
+        Call Array2DToRange(DataFileMod.TestData.LBE_CountsData, "LBE_Down_Counts", TgtCell)
+    End If
+    
+    If Not IsEmpty(DataFileMod.TestData.LS_Sizes) Then
+        Call Array2DToRange(DataFileMod.TestData.LSU_CountsData, "LS_Up_Counts", TgtCell)
+        Call Array2DToRange(DataFileMod.TestData.LSD_CountsData, "LS_Down_Counts", TgtCell)
+    End If
 End Sub
 
 Sub DataTagsToSheets(TgtCell As String)
-        
+    ' FIXED: Only check object validity, don't try to process data
     If Not DataFileMod.EnsureTestDataReady() Then Exit Sub
         
-        If Not IsEmpty(DataFileMod.TestData.AnalogTags) Then
-            Call Array1DToRangeRow(TestData.AnalogTags, "AnalogData", TgtCell)
-        End If
-        
-        If Not IsEmpty(DataFileMod.TestData.CycleAnalogTags) Then
-            Call Array1DToRangeRow(TestData.CycleAnalogTags, "CycleAnalogData", TgtCell)
-        End If
-        
-        If Not IsEmpty(DataFileMod.TestData.LB_Sizes) Then
-            Call Array1DToRangeRow(TestData.LB_Sizes, "LB_Up_Counts", TgtCell)
-            Call Array1DToRangeRow(TestData.LB_Sizes, "LB_Down_Counts", TgtCell)
-        End If
-        
-        If Not IsEmpty(DataFileMod.TestData.LBE_Sizes) Then
-            Call Array1DToRangeRow(TestData.LBE_Sizes, "LBE_Down_Counts", TgtCell)
-        End If
-        
-        If Not IsEmpty(DataFileMod.TestData.LS_Sizes) Then
-            Call Array1DToRangeRow(TestData.LS_Sizes, "LS_Up_Counts", TgtCell)
-            Call Array1DToRangeRow(TestData.LS_Sizes, "LS_Down_Counts", TgtCell)
-        End If
+    If Not IsEmpty(DataFileMod.TestData.AnalogTags) Then
+        Call Array1DToRangeRow(DataFileMod.TestData.AnalogTags, "AnalogData", TgtCell)
+    End If
+    
+    If Not IsEmpty(DataFileMod.TestData.CycleAnalogTags) Then
+        Call Array1DToRangeRow(DataFileMod.TestData.CycleAnalogTags, "CycleAnalogData", TgtCell)
+    End If
+    
+    If Not IsEmpty(DataFileMod.TestData.LB_Sizes) Then
+        Call Array1DToRangeRow(DataFileMod.TestData.LB_Sizes, "LB_Up_Counts", TgtCell)
+        Call Array1DToRangeRow(DataFileMod.TestData.LB_Sizes, "LB_Down_Counts", TgtCell)
+    End If
+    
+    If Not IsEmpty(DataFileMod.TestData.LBE_Sizes) Then
+        Call Array1DToRangeRow(DataFileMod.TestData.LBE_Sizes, "LBE_Down_Counts", TgtCell)
+    End If
+    
+    If Not IsEmpty(DataFileMod.TestData.LS_Sizes) Then
+        Call Array1DToRangeRow(DataFileMod.TestData.LS_Sizes, "LS_Up_Counts", TgtCell)
+        Call Array1DToRangeRow(DataFileMod.TestData.LS_Sizes, "LS_Down_Counts", TgtCell)
+    End If
 End Sub
 
 
@@ -176,6 +167,7 @@ Sub DeleteDataTables(TgtCell As String)
 End Sub
 
 
+
 ' Generic save data table clearing function
 Private Sub ClearUserEntrySaveDataTable(ws As String, tableName As String)
     Dim tbl As ListObject
@@ -218,7 +210,6 @@ Public Sub DisposeData(TgtCell As String)
     Set DataFileMod.TestData = Nothing
 End Sub
 
-
 'This takes in a worksheet and a cell where a table is expected to be found
 'The expectation is that you've written data to the sheet programmatically in a contiguous blob
 'The function will expand the cell reference to the entire range, then convert that range into a named table for data operations.
@@ -260,8 +251,6 @@ Sub CreateTable(ByVal tgtWksheet As String, ByVal TgtCell As String, Optional By
     
     'Show tab containing table
     Sheets(tgtWksheet).Visible = xlSheetVisible
-
-    
 End Sub
 
 '********************************************************************************
@@ -269,27 +258,27 @@ End Sub
 '********************************************************************************
 
 Sub ConvertDataToNamedTables(TgtCell As String)
-        If Not IsEmpty(Sheets("AnalogData").Range(TgtCell)) Then
-            Call CreateTable("AnalogData", "A1")
-        End If
-        
-        If Not IsEmpty(Sheets("CycleAnalogData").Range(TgtCell)) Then
-            Call CreateTable("CycleAnalogData", "A1")
-        End If
-        
-        If Not IsEmpty(Sheets("LB_Up_Counts").Range(TgtCell)) Then
-                    Call CreateTable("LB_Up_Counts", "A1")
-                    Call CreateTable("LB_Down_Counts", "A1")
-        End If
-        
-        If Not IsEmpty(Sheets("LBE_Down_Counts").Range(TgtCell)) Then
-                    Call CreateTable("LBE_Down_Counts", "A1")
-        End If
-        
-        If Not IsEmpty(Sheets("LS_Up_Counts").Range(TgtCell)) Then
-                    Call CreateTable("LS_Up_Counts", "A1")
-                    Call CreateTable("LS_Down_Counts", "A1")
-        End If
+    If Not IsEmpty(Sheets("AnalogData").Range(TgtCell)) Then
+        Call CreateTable("AnalogData", "A1")
+    End If
+    
+    If Not IsEmpty(Sheets("CycleAnalogData").Range(TgtCell)) Then
+        Call CreateTable("CycleAnalogData", "A1")
+    End If
+    
+    If Not IsEmpty(Sheets("LB_Up_Counts").Range(TgtCell)) Then
+                Call CreateTable("LB_Up_Counts", "A1")
+                Call CreateTable("LB_Down_Counts", "A1")
+    End If
+    
+    If Not IsEmpty(Sheets("LBE_Down_Counts").Range(TgtCell)) Then
+                Call CreateTable("LBE_Down_Counts", "A1")
+    End If
+    
+    If Not IsEmpty(Sheets("LS_Up_Counts").Range(TgtCell)) Then
+                Call CreateTable("LS_Up_Counts", "A1")
+                Call CreateTable("LS_Down_Counts", "A1")
+    End If
 End Sub
 
 'This function takes the HeaderData Array saved in the DataFile class module, chops it into sections, then creates tables of those sections on the target tab.
@@ -303,6 +292,8 @@ Sub HeaderDataToSheet(TgtSheet As String)
     Dim j As Integer
     Dim k As Integer
     
+    ' FIXED: Only check object validity and that HeaderData exists
+    ' Do NOT call any functions that might trigger data processing
     If DataFileMod.EnsureTestDataReady() And Not IsEmpty(DataFileMod.TestData.HeaderData) Then
         For i = 0 To UBound(DataFileMod.TestData.HeaderData, 2) - 1
             If Left(DataFileMod.TestData.HeaderData(0, i), 1) = ";" Then
@@ -374,7 +365,6 @@ Sub HeaderDataToSheet(TgtSheet As String)
             WriteIndex = Sheets(TgtSheet).Cells(Rows.count, 1).End(xlUp).Row + 2
         Next i
     End If
-    
 End Sub
 
 '********************************************************************************
@@ -462,13 +452,9 @@ Sub GroupTableData(wkSheet As String, tableName As String)
 
     ' Group the Data range leaving the headers for viewing
     tbl.DataBodyRange.Rows.Group
-    
 End Sub
 
-
-
 Sub CollapseTableData(wkSheet As String)
-
     Dim ws As Worksheet
     
     ' Set the worksheet object
@@ -476,5 +462,4 @@ Sub CollapseTableData(wkSheet As String)
     
     ' Collapse all groups in the worksheet to level 1
     ws.Outline.ShowLevels RowLevels:=1
-    
 End Sub
