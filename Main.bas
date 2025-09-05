@@ -34,6 +34,8 @@ Public Sub GenerateReport()
     ' STEP 3: Update any dashboard or UI elements
     Call UpdateWorkbookUI
     
+    Call UpdateDashboard(True)
+    
     Debug.Print "=== WORKBOOK INITIALIZATION COMPLETED ==="
     
 CleanExit:
@@ -184,7 +186,7 @@ Public Sub ForceCompleteRefresh()
 End Sub
 
 'Todo: Update can't update the name of the data file in the text box on first launch.
-Sub UpdateDashboard()
+Sub UpdateDashboard(Optional preventProcessing As Boolean = False)
     Dim ws As Worksheet
     Dim dataExists As Boolean
     Dim pc As String
@@ -196,8 +198,22 @@ Sub UpdateDashboard()
     
     ' Check if data exists
     Call DataFileMod.EnsureTestDataReady
-
-    dataExists = DataFileMod.TestData.DataExist
+    dataExists = (DataFileMod.TestData.DataExist And _
+                 DataFileMod.TestData.FileName <> "" And _
+                 DataFileMod.TestData.DataRowCount > 0)
+    
+    ' Also check if there's raw data waiting to be processed
+    Dim hasRawData As Boolean
+    hasRawData = DataFileMod.ShouldProcessRawData()
+    
+    ' If we have raw data but no processed data, trigger processing
+    If hasRawData And Not dataExists And Not preventProcessing Then
+        Call DataFileMod.ProcessDataFile
+        If DataFileMod.TestData.DataExist Then
+            Call ISO16889Mod.SetupISO16889ClassModule
+            dataExists = True
+        End If
+    End If
 
     ' === Buttons that require data ===
     HandleButton ws, "BtnModifyGravs", dataExists, "EditGravimetrics"
@@ -386,7 +402,7 @@ Public Sub ToggleParticleCounter()
     Call SetISO16889SaveUserEntry(8, altCounter)
     
     ' Update dashboard
-    Call UpdateDashboard
+    Call UpdateDashboard(True)
     
     Debug.Print "=== ToggleParticleCounter Complete ==="
 End Sub
@@ -411,7 +427,7 @@ Public Sub ToggleFilterPressure()
         SetISO16889SaveUserEntry 7, 1
     End If
     
-    UpdateDashboard
+    UpdateDashboard (True)
 End Sub
 
 
@@ -426,7 +442,7 @@ Public Sub ToggleReportUnits()
         SetSaveUserEntry 30, "SI"
     End If
     
-    UpdateDashboard
+    UpdateDashboard (True)
 End Sub
 
 '======================================================================

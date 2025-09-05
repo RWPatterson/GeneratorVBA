@@ -12,8 +12,7 @@ Sub FormatChart(wkSheet As String, chartName As String, tableName As String)
     Dim parameterArray(1 To 11) As Variant
     Dim i As Integer
     
-    Call DevToolsMod.OptimizePerformance(True)
-    
+  
     ' Validate worksheet
     Set ws = ThisWorkbook.Worksheets(wkSheet)
     If ws Is Nothing Then
@@ -57,7 +56,6 @@ Sub FormatChart(wkSheet As String, chartName As String, tableName As String)
     End With
     
 ExitHandler:
-    Call DevToolsMod.OptimizePerformance(False)
     Set ws = Nothing
     Set chartObj = Nothing
     Exit Sub
@@ -139,15 +137,12 @@ Sub SetChartSeriesByRange(wkSheet As String, chartName As String, TopLeftAddress
     Dim chrt As ChartObject
     Dim topLeft As Range
     Dim lastCol As Long, lastRow As Long
-    Dim dataRange As Range
-    Dim xData As Range, yData As Range
-    Dim hdrCell As Range
-    Dim refName As String
+    Dim allData As Variant
+    Dim xDataArray As Variant, yDataArray As Variant
+    Dim headerArray As Variant
     Dim iCol As Long
     Dim i As Long
     
-    Call DevToolsMod.OptimizePerformance(True)
-
     ' Set worksheet containing chart and reference cell
     Set ws = ThisWorkbook.Worksheets(wkSheet)
     Set chrt = ws.ChartObjects(chartName)
@@ -157,41 +152,46 @@ Sub SetChartSeriesByRange(wkSheet As String, chartName As String, TopLeftAddress
     lastCol = topLeft.End(xlToRight).Column
     lastRow = topLeft.End(xlDown).Row
 
-    ' Set the full data range (including headers)
-    Set dataRange = ws.Range(topLeft, ws.Cells(lastRow, lastCol))
+    ' OPTIMIZATION: Single bulk read of ALL data into memory
+    allData = ws.Range(topLeft, ws.Cells(lastRow, lastCol)).Value
+    
+    ' Extract headers (first row) and X data (first column, excluding header)
+    headerArray = Application.index(allData, 1, 0)  ' First row
+    xDataArray = Application.index(allData, 0, 1)   ' First column
+    
+    ' Remove header from X data array
+    ReDim xDataValues(1 To UBound(allData, 1) - 1)
+    For i = 1 To UBound(xDataValues)
+        xDataValues(i) = allData(i + 1, 1)
+    Next i
 
-    ' Clear all existing series in single loop (more efficient than individual deletes)
+    ' Clear all existing series in single loop
     With chrt.Chart
         For i = .SeriesCollection.count To 1 Step -1
             .SeriesCollection(i).Delete
         Next i
-    End With
-
-    ' Define X-data (first column, below header) - single range reference
-    Set xData = dataRange.Columns(1).offset(1, 0).Resize(dataRange.Rows.count - 1, 1)
-
-    ' Loop through each Y series (columns 2 to N) with optimized range operations
-    For iCol = 2 To dataRange.Columns.count
-        Set yData = dataRange.Columns(iCol).offset(1, 0).Resize(dataRange.Rows.count - 1, 1)
-        Set hdrCell = dataRange.Cells(1, iCol)
-        refName = "='" & ws.Name & "'!" & hdrCell.Address(ReferenceStyle:=xlA1)
         
-        With chrt.Chart.SeriesCollection.NewSeries
-            .xValues = xData
-            .values = yData
-            .Name = refName   ' Reference the header cell dynamically
-        End With
-    Next iCol
+        ' OPTIMIZATION: Create all series using array data (no worksheet access)
+        For iCol = 2 To UBound(allData, 2)
+            ' Extract Y data for this column (excluding header)
+            ReDim yDataValues(1 To UBound(allData, 1) - 1)
+            For i = 1 To UBound(yDataValues)
+                yDataValues(i) = allData(i + 1, iCol)
+            Next i
+            
+            ' Create series with array data
+            With .SeriesCollection.NewSeries
+                .values = yDataValues        ' Array assignment - no range reference
+                .XValues = xDataValues       ' Array assignment - no range reference
+                .Name = headerArray(iCol)    ' Header name from array
+            End With
+        Next iCol
+    End With
     
 ExitHandler:
-    Call DevToolsMod.OptimizePerformance(False)
     Set ws = Nothing
     Set chrt = Nothing
     Set topLeft = Nothing
-    Set dataRange = Nothing
-    Set xData = Nothing
-    Set yData = Nothing
-    Set hdrCell = Nothing
     Exit Sub
     
 ErrorHandler:
@@ -241,15 +241,36 @@ Public Sub UpdateCharts()
     
     Call DevToolsMod.OptimizePerformance(True)
     
+    ' Only update charts if there's data
+    If Not (DataFileMod.EnsureTestDataReady() And DataFileMod.TestData.DataExist) Then
+        GoTo ExitHandler
+    End If
+    
     Application.Calculate
     
-    
+    DevToolsMod.TimerStartCount
     Call SetISO16889C1DPvMassSI
+    DevToolsMod.TimerEndCount "C1 DP vs Mass Chart"
+    
+    DevToolsMod.TimerStartCount
     Call SetISO16889C2SizevBetaSI
+    DevToolsMod.TimerEndCount "C2 Beta vs Size Chart"
+    
+    DevToolsMod.TimerStartCount
     Call SetISO16889C3TimevBeta
+    DevToolsMod.TimerEndCount "C3 Beta vs Time Chart"
+    
+    DevToolsMod.TimerStartCount
     Call SetISO16889C4PressureSIvBeta
+    DevToolsMod.TimerEndCount "C4 Beta vs Pressure Chart"
+    
+    DevToolsMod.TimerStartCount
     Call SetISO16889C5UpCountsVsTime
+    DevToolsMod.TimerEndCount "C5 Up Counts Chart"
+    
+    DevToolsMod.TimerStartCount
     Call SetISO16889C6DnCountsVsTime
+    DevToolsMod.TimerEndCount "C6 Down Counts Chart"
 
 ExitHandler:
     Call DevToolsMod.OptimizePerformance(False)
