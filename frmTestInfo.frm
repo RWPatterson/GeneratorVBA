@@ -225,16 +225,16 @@ Private Sub NextBtn_Click()
          NextBtn.Visible = False
          PrevBtn.Visible = True
       Else
-        If (Me.MultiPage1.Value = Me.MultiPage1.Pages.count - 3) And (frmTestInfo.MultiPage1.Pages("pg_Part_Size").Enabled = False) Then
+        If (Me.MultiPage1.Value = Me.MultiPage1.Pages.count - 3) And (frmTestInfo.MultiPage1.Pages("pg_Part_Size").enabled = False) Then
            NextBtn.Visible = False
            PrevBtn.Visible = True
         Else
             NextBtn.Visible = True
             PrevBtn.Visible = True
         
-            If Me.MultiPage1(Me.MultiPage1.Value + 1).Enabled Then
+            If Me.MultiPage1(Me.MultiPage1.Value + 1).enabled Then
                Me.MultiPage1.Value = Me.MultiPage1.Value + 1
-            ElseIf Me.MultiPage1(Me.MultiPage1.Value + 2).Enabled Then
+            ElseIf Me.MultiPage1(Me.MultiPage1.Value + 2).enabled Then
                Me.MultiPage1.Value = Me.MultiPage1.Value + 2
             End If
         End If
@@ -250,9 +250,9 @@ Private Sub PrevBtn_Click()
       PrevBtn.Visible = True
       NextBtn.Visible = True
    
-       If Me.MultiPage1(Me.MultiPage1.Value - 1).Enabled Then
+       If Me.MultiPage1(Me.MultiPage1.Value - 1).enabled Then
           Me.MultiPage1.Value = Me.MultiPage1.Value - 1
-       ElseIf Me.MultiPage1(Me.MultiPage1.Value - 2).Enabled Then
+       ElseIf Me.MultiPage1(Me.MultiPage1.Value - 2).enabled Then
           Me.MultiPage1.Value = Me.MultiPage1.Value - 2
        End If
      End If

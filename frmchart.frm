@@ -97,8 +97,8 @@ Private Sub ChartChoice_Click()
     Call LoadChartParameters(wkSheet, tblName)
 
     ' Enable controls for editing as appropriate
-    Me.ResetChartsCB.Enabled = True
-    Me.ModChartCB.Enabled = True
+    Me.ResetChartsCB.enabled = True
+    Me.ModChartCB.enabled = True
 
     Me.NewMinX.Locked = False
     Me.NewMaxX.Locked = False
@@ -380,7 +380,7 @@ Private Sub ModChartCB_Click()
     ' Update preview with modified chart
     Call UpdateChartPreview(wkSheet, chartName)
 
-    Me.ResetChartsCB.Enabled = True
+    Me.ResetChartsCB.enabled = True
 
 ExitHandler:
     Call DevToolsMod.OptimizePerformance(False)

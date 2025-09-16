@@ -1,194 +1,154 @@
 Attribute VB_Name = "Main"
 Option Explicit
 
-Private Sub CreateReport()
-    If OpenDataFile() Then
-        
-        ' Perform all setup and dashboard update logic
-        GenerateReport
-        
-    End If
-End Sub
+'*************************************************************************************
+'******* MAIN CONTROLLER - Performance Optimized for Report Generation ***************
+'*************************************************************************************
 
+' Key Performance Principles:
+' 1. Validate once, cache results
+' 2. Only rebuild analysis when parameters actually change
+' 3. Batch operations where possible
+' 4. Minimize Excel recalculations
 
+Private Type SystemState
+    DataFileLoaded As Boolean
+    AnalysisBuilt As Boolean
+    chartsInitialized As Boolean
+    LastAnalysisHash As String  ' Cache hash to detect changes
+    IsProcessing As Boolean     ' Prevent recursive calls
+End Type
+
+Private analysisHash As String
+Private chartsInitialized As Boolean
+Private sysState As SystemState
+
+'======================================================================
+'============== MAIN ENTRY POINTS ===================================
+'======================================================================
+
+' Primary initialization - called from Workbook_Open
 Public Sub GenerateReport()
     DevToolsMod.TimerStartCount
     DevToolsMod.OptimizePerformance True
     
+    Debug.Print "=== GenerateReport Started ==="
+    
     On Error GoTo CleanExit
     
-    Debug.Print "=== WORKBOOK INITIALIZATION STARTED ==="
+    ' Prevent recursive calls
+    If sysState.IsProcessing Then
+        Debug.Print "GenerateReport already in progress, exiting"
+        GoTo CleanExit
+    End If
+    sysState.IsProcessing = True
     
-    ' STEP 1: Ensure basic object structure exists
-    Call EnsureBasicObjects
-    
-    ' STEP 2: Check if we have raw data that needs processing
-    If DataFileMod.ShouldProcessRawData() Then
-        Debug.Print "Raw data detected - processing file..."
-        Call ProcessDataFileAndStandards
-    Else
-        Debug.Print "No unprocessed raw data found"
-        ' Objects exist but no data to process - normal for empty template
+    ' STEP 1: Quick validation - is there raw data waiting?
+    If HasUnprocessedRawData() Then
+        Debug.Print "Found unprocessed raw data, processing..."
+        Call ProcessDataFileOnce
+        sysState.DataFileLoaded = True
     End If
     
-    ' STEP 3: Update any dashboard or UI elements
-    Call UpdateWorkbookUI
+    ' STEP 2: Ensure TestData object exists (lightweight check)
+    If Not DataFileMod.EnsureTestDataReady() Then
+        Debug.Print "No valid test data available"
+        Call UpdateDashboard  ' Show empty state
+        GoTo CleanExit
+    End If
     
-    Call UpdateDashboard(True)
+    ' STEP 3: Only build analysis if we have processed data and it's needed
+    If sysState.DataFileLoaded And DataFileMod.TestData.DataExist Then
+        Call BuildAnalysisIfNeeded
+    End If
     
-    Debug.Print "=== WORKBOOK INITIALIZATION COMPLETED ==="
+    ' STEP 4: Update dashboard (lightweight operation)
+    Call UpdateDashboard
+    
+    Debug.Print "=== GenerateReport Completed ==="
     
 CleanExit:
+    sysState.IsProcessing = False
     DevToolsMod.OptimizePerformance False
-    DevToolsMod.TimerEndCount "Complete Workbook Initialization"
-    If Err.Number <> 0 Then
-        Debug.Print "GenerateReport Error: " & Err.Description
-        MsgBox "Workbook initialization encountered an error: " & Err.Description, vbExclamation
-    End If
+    DevToolsMod.TimerEndCount "Main.GenerateReport"
 End Sub
 
-' Step 1: Ensure basic object structure exists (recovery function)
-Private Sub EnsureBasicObjects()
-    DevToolsMod.TimerStartCount
-    
-    ' This just ensures TestData object exists and is valid
-    ' It does NOT attempt to process any data
-    If Not DataFileMod.EnsureTestDataReady() Then
-        Debug.Print "Error: Could not establish TestData object"
-    Else
-        Debug.Print "TestData object ready - Status: " & IIf(DataFileMod.TestData.DataExist, "Contains Data", "Empty")
-        
-        ' ADDED: Additional debugging
-        Debug.Print "TestData details:"
-        Debug.Print "  - FileName: '" & DataFileMod.TestData.FileName & "'"
-        Debug.Print "  - TestType: '" & DataFileMod.TestData.testType & "'"
-        Debug.Print "  - DataRowCount: " & DataFileMod.TestData.DataRowCount
-        Debug.Print "  - Object is valid and ready for use"
-    End If
-    
-    DevToolsMod.TimerEndCount "Basic Objects Check"
-End Sub
-
-' Step 2: Process data file and set up standards (only when needed)
-Private Sub ProcessDataFileAndStandards()
-    DevToolsMod.TimerStartCount
-    
-    ' Process the raw data file
-    Debug.Print "Processing data file..."
-    Call DataFileMod.ProcessDataFile
-    
-    ' Verify processing was successful
-    If Not DataFileMod.TestData.DataExist Then
-        Debug.Print "Warning: Data processing failed"
-        DevToolsMod.TimerEndCount "Data Processing (FAILED)"
-        Exit Sub
-    End If
-    
-    Debug.Print "Data processing completed successfully"
-    Debug.Print "File: " & DataFileMod.TestData.FileName & " (" & DataFileMod.TestData.testType & ")"
-    
-    ' Set up ISO 16889 analysis (or other standards)
-    Debug.Print "Setting up ISO 16889 analysis..."
-    Call ISO16889Mod.SetupISO16889ClassModule
-    
-    DevToolsMod.TimerEndCount "Data Processing and Standards Setup"
-End Sub
-
-' Step 3: Update UI and dashboard elements
-Private Sub UpdateWorkbookUI()
-    DevToolsMod.TimerStartCount
-    
-    ' Update any dashboard elements, charts, or UI components
-    ' This is where you'd put any chart updates, dashboard refreshes, etc.
-    
-    ' Example: Update charts if data exists
-    If DataFileMod.EnsureTestDataReady() And DataFileMod.TestData.DataExist Then
-        ' Only update charts if we have processed data
-        Call Charts.UpdateCharts
-        Debug.Print "Charts updated"
-    End If
-    
-    ' Set active sheet to Dashboard or Home
-    On Error Resume Next
-    If WorksheetExists("Dashboard") Then
-        Sheets("Dashboard").Select
-    ElseIf WorksheetExists("Home") Then
-        Sheets("Home").Select
-    End If
-    On Error GoTo 0
-    
-    DevToolsMod.TimerEndCount "UI Updates"
-End Sub
-
-'======================================================================
-'================ FILE OPERATIONS ===================================
-'======================================================================
-
-' Main function for opening new data files (called from forms)
+' Lightweight function to load new data file
 Public Function LoadNewDataFile() As Boolean
     DevToolsMod.TimerStartCount
+    
+    Debug.Print "=== LoadNewDataFile Started ==="
     LoadNewDataFile = False
     
-    On Error GoTo LoadFailed
+    On Error GoTo LoadError
     
-    Debug.Print "=== LOADING NEW DATA FILE ==="
+    ' Clean up previous data first
+    Call CleanupBeforeNewFile
     
-    ' Step 1: Open and load the file
-    If Not File_Subs.OpenDataFile() Then
-        Debug.Print "File opening was cancelled or failed"
-        GoTo LoadFailed
+    ' Open new file using existing function
+    If File_Subs.OpenDataFile() Then
+        ' Process the file immediately
+        Call ProcessDataFileOnce
+        
+        ' Mark system state
+        sysState.DataFileLoaded = True
+        sysState.AnalysisBuilt = False
+        sysState.chartsInitialized = False
+        
+        LoadNewDataFile = True
+        Debug.Print "New data file loaded successfully"
+    Else
+        Debug.Print "Failed to open new data file"
     End If
     
-    ' Step 2: Process the newly loaded data
-    Call ProcessDataFileAndStandards
+    ' Always update dashboard to reflect current state
+    Call UpdateDashboard
     
-    ' Step 3: Verify success
-    If Not DataFileMod.TestData.DataExist Then
-        MsgBox "Data file loaded but processing failed. Please check the file format.", vbExclamation
-        GoTo LoadFailed
-    End If
-    
-    ' Step 4: Update UI
-    Call UpdateWorkbookUI
-    
-    LoadNewDataFile = True
-    Debug.Print "=== NEW DATA FILE LOADED SUCCESSFULLY ==="
-    DevToolsMod.TimerEndCount "New Data File Loading"
+    DevToolsMod.TimerEndCount "Main.LoadNewDataFile"
     Exit Function
     
-LoadFailed:
-    Debug.Print "=== DATA FILE LOADING FAILED ==="
-    DevToolsMod.TimerEndCount "New Data File Loading (FAILED)"
+LoadError:
+    Debug.Print "Error in LoadNewDataFile: " & Err.Description
     LoadNewDataFile = False
+    DevToolsMod.TimerEndCount "Main.LoadNewDataFile (Error)"
 End Function
 
-' Force refresh of all analysis (for dashboard "Rebuild" buttons)
-Public Sub ForceCompleteRefresh()
+'======================================================================
+'============== DASHBOARD MANAGEMENT =================================
+'======================================================================
+
+' Lightweight dashboard update - no heavy processing
+Public Sub UpdateDashboard()
     DevToolsMod.TimerStartCount
     
-    Debug.Print "=== FORCING COMPLETE REFRESH ==="
+    On Error Resume Next  ' Dashboard updates should never crash the system
     
-    ' Clear any cached analysis
-    If Not ISO16889Mod.ISO16889ReportData Is Nothing Then
-        Call ISO16889Mod.ISO16889ReportData.InvalidateCache
-    End If
+    ' Quick state assessment without expensive validation
+    Dim hasData As Boolean
+    Dim hasAnalysis As Boolean
     
-    ' Rebuild everything if we have data
-    If DataFileMod.EnsureTestDataReady() And DataFileMod.TestData.DataExist Then
-        Call ISO16889Mod.SetupISO16889ClassModule
-        Call UpdateWorkbookUI
-        Debug.Print "Complete refresh completed"
+    hasData = (Not DataFileMod.TestData Is Nothing) And DataFileMod.TestData.DataExist
+    hasAnalysis = hasData And (Not ISO16889Mod.ISO16889ReportData Is Nothing)
+    
+    ' Update dashboard display elements
+    Call UpdateDashboardDisplay(hasData, hasAnalysis)
+    
+    ' Only trigger heavy operations if explicitly needed
+    If hasData And Not sysState.AnalysisBuilt Then
+        ' User has data but no analysis - offer to build it
+        Call SetDashboardMessage("Data loaded. Click 'Build Analysis' to generate report.")
+    ElseIf Not hasData Then
+        Call SetDashboardMessage("No data loaded. Click 'Load File' to begin.")
     Else
-        Debug.Print "No data available for refresh"
+        Call SetDashboardMessage("Ready")
     End If
     
-    DevToolsMod.TimerEndCount "Complete Refresh"
+    DevToolsMod.TimerEndCount "Main.UpdateDashboard"
 End Sub
 
-'Todo: Update can't update the name of the data file in the text box on first launch.
-Sub UpdateDashboard(Optional preventProcessing As Boolean = False)
+' Update dashboard visual elements without triggering calculations
+Private Sub UpdateDashboardDisplay(hasData As Boolean, hasAnalysis As Boolean)
     Dim ws As Worksheet
-    Dim dataExists As Boolean
     Dim pc As String
     Dim filterSel As Variant
     Dim unitsSel As String
@@ -196,36 +156,17 @@ Sub UpdateDashboard(Optional preventProcessing As Boolean = False)
 
     Set ws = ThisWorkbook.Sheets("Dashboard")
     
-    ' Check if data exists
-    Call DataFileMod.EnsureTestDataReady
-    dataExists = (DataFileMod.TestData.DataExist And _
-                 DataFileMod.TestData.FileName <> "" And _
-                 DataFileMod.TestData.DataRowCount > 0)
-    
-    ' Also check if there's raw data waiting to be processed
-    Dim hasRawData As Boolean
-    hasRawData = DataFileMod.ShouldProcessRawData()
-    
-    ' If we have raw data but no processed data, trigger processing
-    If hasRawData And Not dataExists And Not preventProcessing Then
-        Call DataFileMod.ProcessDataFile
-        If DataFileMod.TestData.DataExist Then
-            Call ISO16889Mod.SetupISO16889ClassModule
-            dataExists = True
-        End If
-    End If
-
     ' === Buttons that require data ===
-    HandleButton ws, "BtnModifyGravs", dataExists, "EditGravimetrics"
-    HandleButton ws, "BtnModifyGraphs", dataExists, "ShowChartForm"
-    HandleButton ws, "BtnPrintReport", dataExists, "PrintSelectedSheets"
+    HandleButton ws, "BtnModifyGravs", hasData, "EditGravimetrics"
+    HandleButton ws, "BtnModifyGraphs", hasData, "ShowChartForm"
+    HandleButton ws, "BtnPrintReport", hasData, "PrintSelectedSheets"
     
     ' === Always visible buttons ===
     HandleButton ws, "BtnCreateReport", True, "CreateReport"
     HandleButton ws, "BtnModifyLogo", True, "ModifyLogoMacro"
 
     ' === Macro changes & file name display ===
-    If dataExists Then
+    If hasData Then
         HandleButton ws, "BtnModifyTestInfo", True, "MacroModifyTestInfo_Normal"
         HandleButton ws, "BtnSaveReport", True, "SaveAsReport"
         ws.Shapes("BtnSaveReport").TextFrame.Characters.Text = "Save Report"
@@ -237,36 +178,37 @@ Sub UpdateDashboard(Optional preventProcessing As Boolean = False)
         ws.Shapes("BoxFileName").TextFrame.Characters.Text = "File Name: "
     End If
 
-    ' === TOGGLE BUTTONS — only active when dataExists ===
-    ' --- Particle Counter Toggle ---
-    pc = GetISO16889SaveResult(8)
+    ' === TOGGLE BUTTONS ===
+    pc = ""
+    If hasData Then pc = ISO16889Mod.GetISO16889SaveResult(8)
+    
     With ws.Shapes("BtnToggleParticleCounter")
-        If dataExists And pc <> "" Then
-            .Fill.ForeColor.RGB = RGB(68, 114, 196) ' Active blue
+        If hasData And pc <> "" Then
+            .Fill.ForeColor.RGB = RGB(68, 114, 196)
             .OnAction = "ToggleParticleCounter"
             .TextFrame.Characters.Text = "Counter: " & pc
-        ElseIf dataExists And pc = "" Then
-            ' Only one dataset — disable
+        ElseIf hasData And pc = "" Then
             .Fill.ForeColor.RGB = RGB(217, 217, 217)
             .OnAction = ""
             .TextFrame.Characters.Text = "Single Set"
         Else
-            ' Data not loaded — disable
             .Fill.ForeColor.RGB = RGB(191, 191, 191)
             .OnAction = ""
             .TextFrame.Characters.Text = "Counter: --"
         End If
     End With
 
-    ' --- Filter Pressure Toggle ---
-    filterSel = GetISO16889SaveResult(7)
-    pressurePhrase = CStr(GetISO16889SaveResult(7))
+    ' Filter Pressure Toggle
+    filterSel = ""
+    If hasData Then filterSel = ISO16889Mod.GetISO16889SaveResult(7)
+    pressurePhrase = CStr(filterSel)
+    
     With ws.Shapes("BtnToggleFilterPressure")
-        If dataExists And pressurePhrase <> "TS_DPress" Then
+        If hasData And pressurePhrase <> "TS_DPress" Then
             .Fill.ForeColor.RGB = RGB(68, 114, 196)
             .OnAction = "ToggleFilterPressure"
             .TextFrame.Characters.Text = "Filter: " & filterSel
-        ElseIf dataExists And pressurePhrase = "TS_DPress" Then
+        ElseIf hasData And pressurePhrase = "TS_DPress" Then
             .Fill.ForeColor.RGB = RGB(217, 217, 217)
             .OnAction = ""
             .TextFrame.Characters.Text = "Filter 1 only"
@@ -277,10 +219,12 @@ Sub UpdateDashboard(Optional preventProcessing As Boolean = False)
         End If
     End With
 
-    ' --- Report Units Toggle ---
-    unitsSel = GetSaveResult(30)
+    ' Report Units Toggle
+    unitsSel = ""
+    If hasData Then unitsSel = ReportFillMod.GetSaveResult(30)
+    
     With ws.Shapes("BtnToggleReportUnits")
-        If dataExists Then
+        If hasData Then
             .Fill.ForeColor.RGB = RGB(68, 114, 196)
             .OnAction = "ToggleReportUnits"
             .TextFrame.Characters.Text = "Units: " & unitsSel
@@ -292,36 +236,271 @@ Sub UpdateDashboard(Optional preventProcessing As Boolean = False)
     End With
 End Sub
 
-Private Sub ProcessCurrentStandard()
-    Dim currentStandard As String
-    currentStandard = DetermineStandardFromFile()
-    
-    Select Case currentStandard
-        Case "ISO16889"
-            Call ISO16889Mod.SetupISO16889ClassModule
-        Case "ISO23369"
-            ' Call ISO23369Mod.SetupISO23369ClassModule  ' Future
-        Case Else
-            Call ISO16889Mod.SetupISO16889ClassModule  ' Default fallback
-    End Select
+Private Sub SetDashboardMessage(message As String)
+    On Error Resume Next
+    ' Update a status label or cell on the dashboard
+    Range("DashboardStatus").Value = message
 End Sub
 
-Private Function DetermineStandardFromFile() As String
-    If DataFileMod.TestData Is Nothing Then
-        DetermineStandardFromFile = "ISO16889"
-        Exit Function
+Private Sub EnableDashboardButton(buttonName As String, enabled As Boolean)
+    On Error Resume Next
+    ' Enable/disable buttons on dashboard
+    ' Implementation depends on how buttons are created (shapes, ActiveX, etc.)
+End Sub
+
+'======================================================================
+'============== INTELLIGENT PROCESSING ==============================
+'======================================================================
+
+' Check for unprocessed raw data without expensive validation
+Private Function HasUnprocessedRawData() As Boolean
+    HasUnprocessedRawData = False
+    
+    On Error Resume Next
+    
+    ' Quick check - is there a HEADER in RawData but no processed data arrays?
+    If Sheets("RawData").Cells(1, 1).Value = "HEADER" Then
+        ' Raw data exists, check if TestData object has been populated
+        If DataFileMod.TestData Is Nothing Then
+            HasUnprocessedRawData = True
+        ElseIf Not DataFileMod.TestData.DataExist Then
+            HasUnprocessedRawData = True
+        ElseIf DataFileMod.TestData.FileName = "" Then
+            ' Object exists but is empty
+            HasUnprocessedRawData = True
+        End If
     End If
     
-    Select Case DataFileMod.TestData.testType
-        Case "Single-Pass", "Multipass", "Multipass Series"
-            DetermineStandardFromFile = "ISO16889"
-        Case "Cyclic Multipass", "Cyclic Series Multipass"
-            DetermineStandardFromFile = "ISO23369"
-        Case Else
-            DetermineStandardFromFile = "ISO16889"
-    End Select
+    Debug.Print "HasUnprocessedRawData: " & HasUnprocessedRawData
 End Function
 
+' Process data file exactly once - no redundant validation
+Private Sub ProcessDataFileOnce()
+    DevToolsMod.TimerStartCount
+    
+    Debug.Print "ProcessDataFileOnce: Starting data processing"
+    
+    ' Process data using existing optimized function
+    Call DataFileMod.ProcessDataFile
+    
+    ' Verify processing succeeded
+    If DataFileMod.TestData.DataExist Then
+        Debug.Print "Data processing completed successfully"
+        Debug.Print "  File: " & DataFileMod.TestData.FileName
+        Debug.Print "  Type: " & DataFileMod.TestData.testType
+        Debug.Print "  Rows: " & DataFileMod.TestData.DataRowCount
+    Else
+        Debug.Print "Data processing failed"
+    End If
+    
+    DevToolsMod.TimerEndCount "ProcessDataFileOnce"
+End Sub
+
+' Build analysis only if needed and cache the result
+Private Sub BuildAnalysisIfNeeded()
+    DevToolsMod.TimerStartCount
+    
+    ' Check if analysis is already built and current
+    If sysState.AnalysisBuilt And AnalysisIsCurrent() Then
+        Debug.Print "Analysis is current, skipping rebuild"
+        DevToolsMod.TimerEndCount "BuildAnalysisIfNeeded (cached)"
+        Exit Sub
+    End If
+    
+    Debug.Print "Building ISO 16889 analysis..."
+    
+    ' Build analysis using existing function
+    Call ISO16889Mod.SetupISO16889ClassModule
+    
+    ' Update system state
+    sysState.AnalysisBuilt = True
+    sysState.LastAnalysisHash = GenerateAnalysisHash()
+    
+    ' Initialize charts after analysis is built
+    Call InitializeChartsIfNeeded
+    
+    DevToolsMod.TimerEndCount "BuildAnalysisIfNeeded (rebuilt)"
+End Sub
+
+' Check if current analysis matches the data state
+Private Function AnalysisIsCurrent() As Boolean
+    AnalysisIsCurrent = False
+    
+    ' Quick checks first
+    If ISO16889Mod.ISO16889ReportData Is Nothing Then Exit Function
+    If sysState.LastAnalysisHash = "" Then Exit Function
+    
+    ' Compare current state hash with cached hash
+    Dim currentHash As String
+    currentHash = GenerateAnalysisHash()
+    
+    AnalysisIsCurrent = (currentHash = sysState.LastAnalysisHash)
+    
+    Debug.Print "AnalysisIsCurrent: " & AnalysisIsCurrent
+    If Not AnalysisIsCurrent Then
+        Debug.Print "  Cached hash: " & sysState.LastAnalysisHash
+        Debug.Print "  Current hash: " & currentHash
+    End If
+End Function
+
+' Generate a simple hash of key analysis parameters
+Private Function GenerateAnalysisHash() As String
+    On Error Resume Next
+    
+    Dim hash As String
+    
+    ' Include key parameters that would trigger analysis rebuild
+    If Not DataFileMod.TestData Is Nothing Then
+        hash = hash & "|File:" & DataFileMod.TestData.FileName
+        hash = hash & "|Rows:" & DataFileMod.TestData.DataRowCount
+    End If
+    
+    ' Include key ISO 16889 parameters
+    hash = hash & "|Filter:" & ISO16889Mod.GetISO16889SaveResult(7)
+    hash = hash & "|Sensor:" & ISO16889Mod.GetISO16889SaveResult(8)
+    hash = hash & "|DP:" & ISO16889Mod.GetISO16889SaveResult(2)
+    
+    GenerateAnalysisHash = hash
+End Function
+
+'======================================================================
+'============== CHART MANAGEMENT ====================================
+'======================================================================
+
+' Initialize charts only once after analysis is built
+Private Sub InitializeChartsIfNeeded()
+    If sysState.chartsInitialized Then
+        Debug.Print "Charts already initialized"
+        Exit Sub
+    End If
+    
+    DevToolsMod.TimerStartCount
+    
+    ' Batch update all charts at once
+    Call UpdateAllCharts
+    
+    sysState.chartsInitialized = True
+    DevToolsMod.TimerEndCount "InitializeChartsIfNeeded"
+End Sub
+
+' Update all charts in batch for better performance
+Public Sub UpdateAllCharts()
+    DevToolsMod.TimerStartCount
+    DevToolsMod.OptimizePerformance True
+    
+    Debug.Print "Updating all charts..."
+    
+    On Error Resume Next
+    
+    ' Update all 6 charts in sequence
+    Call ISO16889Mod.SetISO16889C1DPvMassSI
+    Call ISO16889Mod.SetISO16889C2SizevBetaSI
+    Call ISO16889Mod.SetISO16889C3TimevBeta
+    Call ISO16889Mod.SetISO16889C4PressureSIvBeta
+    Call ISO16889Mod.SetISO16889C5UpCountsVsTime
+    Call ISO16889Mod.SetISO16889C6DnCountsVsTime
+    
+    Debug.Print "All charts updated"
+    
+    DevToolsMod.OptimizePerformance False
+    DevToolsMod.TimerEndCount "UpdateAllCharts"
+End Sub
+
+' Force chart refresh (for manual button clicks)
+Public Sub ForceChartRefresh()
+    sysState.chartsInitialized = False
+    Call InitializeChartsIfNeeded
+End Sub
+
+'======================================================================
+'============== CLEANUP MANAGEMENT ==================================
+'======================================================================
+
+' Clean up before loading new file
+Private Sub CleanupBeforeNewFile()
+    DevToolsMod.TimerStartCount
+    
+    Debug.Print "Cleaning up before new file..."
+    
+    ' Reset system state
+    sysState.DataFileLoaded = False
+    sysState.AnalysisBuilt = False
+    sysState.chartsInitialized = False
+    sysState.LastAnalysisHash = ""
+    
+    ' Clean up data using existing function
+    Call ISO16889Mod.CleanupBeforeNewFile
+    
+    DevToolsMod.TimerEndCount "CleanupBeforeNewFile"
+End Sub
+
+'======================================================================
+'============== PUBLIC INTERFACE FOR BUTTONS/FORMS ==================
+'======================================================================
+
+' Force rebuild analysis (for dashboard buttons)
+Public Sub ForceRebuildAnalysis()
+    sysState.AnalysisBuilt = False
+    sysState.LastAnalysisHash = ""
+    Call BuildAnalysisIfNeeded
+    Call UpdateDashboard
+End Sub
+
+' Quick status check for external calls
+Public Function GetSystemStatus() As String
+    Dim status As String
+    
+    status = "System Status:" & vbCrLf
+    status = status & "  Data Loaded: " & sysState.DataFileLoaded & vbCrLf
+    status = status & "  Analysis Built: " & sysState.AnalysisBuilt & vbCrLf
+    status = status & "  Charts Initialized: " & sysState.chartsInitialized & vbCrLf
+    
+    If Not DataFileMod.TestData Is Nothing Then
+        status = status & "  File: " & DataFileMod.TestData.FileName & vbCrLf
+        status = status & "  Rows: " & DataFileMod.TestData.DataRowCount & vbCrLf
+    End If
+    
+    GetSystemStatus = status
+End Function
+
+' Reset system state (for troubleshooting)
+Public Sub ResetSystemState()
+    sysState.DataFileLoaded = False
+    sysState.AnalysisBuilt = False
+    sysState.chartsInitialized = False
+    sysState.LastAnalysisHash = ""
+    sysState.IsProcessing = False
+    
+    Debug.Print "System state reset"
+End Sub
+
+Public Sub CreateReport()
+    If File_Subs.OpenDataFile() Then
+        ' Clean up any previous data first
+        Call CleanupBeforeNewFile
+        
+        ' Process the newly loaded file
+        Call ProcessDataFileOnce
+        
+        ' Verify data was loaded
+        If DataFileMod.TestData.DataExist Then
+            ' Mark that we have new data
+            sysState.DataFileLoaded = True
+            sysState.AnalysisBuilt = False
+            sysState.chartsInitialized = False
+            
+            ' Build analysis and initialize charts
+            Call BuildAnalysisIfNeeded
+            
+            ' Update dashboard to reflect new state
+            Call UpdateDashboard
+            
+            Debug.Print "CreateReport completed successfully"
+        Else
+            MsgBox "Data file processing failed. Please check the file format.", vbExclamation
+        End If
+    End If
+End Sub
 
 Private Sub HandleButton(ws As Worksheet, btnName As String, _
                          enableButton As Boolean, Optional macroName As String = "")
@@ -336,7 +515,7 @@ Private Sub HandleButton(ws As Worksheet, btnName As String, _
 
     ' Change fill color to indicate enabled/disabled
     If enableButton Then
-        shp.Fill.ForeColor.RGB = RGB(68, 114, 196)  '  for active
+        shp.Fill.ForeColor.RGB = RGB(68, 114, 196)  ' Blue for active
         If macroName <> "" Then shp.OnAction = macroName
     Else
         shp.Fill.ForeColor.RGB = RGB(191, 191, 191) ' Gray for inactive
@@ -344,8 +523,9 @@ Private Sub HandleButton(ws As Worksheet, btnName As String, _
     End If
 End Sub
 
-'Toggle Buttons logic
-
+'======================================================================
+'============== TOGGLE BUTTONS ======================================
+'======================================================================
 
 Public Sub ToggleParticleCounter()
     Dim currentCounter As String
@@ -353,7 +533,7 @@ Public Sub ToggleParticleCounter()
     
     Debug.Print "=== ToggleParticleCounter Start ==="
     
-    currentCounter = GetISO16889SaveResult(8) ' Index 8 = particle counter phrase
+    currentCounter = ISO16889Mod.GetISO16889SaveResult(8) ' Index 8 = particle counter phrase
     Debug.Print "Current counter from SaveData: '" & currentCounter & "'"
     
     If currentCounter = "" Then
@@ -377,10 +557,10 @@ Public Sub ToggleParticleCounter()
     Select Case currentCounter
         Case "LB"
             Debug.Print "Current is LB - checking for alternates..."
-            If hasData(DataFileMod.TestData.LS_Sizes) Then
+            If ReportFillMod.hasData(DataFileMod.TestData.LS_Sizes) Then
                 altCounter = "LS"
                 Debug.Print "  Found LS data"
-            ElseIf hasData(DataFileMod.TestData.LBE_Sizes) Then
+            ElseIf ReportFillMod.hasData(DataFileMod.TestData.LBE_Sizes) Then
                 altCounter = "LBE"
                 Debug.Print "  Found LBE data"
             Else
@@ -399,20 +579,20 @@ Public Sub ToggleParticleCounter()
     Debug.Print "Switching from " & currentCounter & " to " & altCounter
     
     ' Save alternate choice
-    Call SetISO16889SaveUserEntry(8, altCounter)
+    Call ISO16889Mod.SetISO16889SaveUserEntry(8, altCounter)
     
     ' Update dashboard
-    Call UpdateDashboard(True)
+    Call UpdateDashboard
     
     Debug.Print "=== ToggleParticleCounter Complete ==="
 End Sub
 
 Public Sub ToggleFilterPressure()
     Dim currentFilter As Long
-    Dim pressurePhrase As String  ' must be String if comparing to text
+    Dim pressurePhrase As String
 
-    currentFilter = CLng(GetISO16889SaveResult(7))
-    pressurePhrase = CStr(GetISO16889SaveResult(7))
+    currentFilter = CLng(ISO16889Mod.GetISO16889SaveResult(7))
+    pressurePhrase = CStr(ISO16889Mod.GetISO16889SaveResult(7))
     
     ' If the tag is "TS_DPress", only one dataset is available
     If pressurePhrase = "TS_DPress" Then
@@ -422,31 +602,30 @@ Public Sub ToggleFilterPressure()
     
     ' Toggle
     If currentFilter = 1 Then
-        SetISO16889SaveUserEntry 7, 2
+        ISO16889Mod.SetISO16889SaveUserEntry 7, 2
     Else
-        SetISO16889SaveUserEntry 7, 1
+        ISO16889Mod.SetISO16889SaveUserEntry 7, 1
     End If
     
-    UpdateDashboard (True)
+    UpdateDashboard
 End Sub
-
 
 Public Sub ToggleReportUnits()
     Dim currentUnits As String
     
-    currentUnits = GetSaveResult(30)
+    currentUnits = ReportFillMod.GetSaveResult(30)
     
     If UCase(currentUnits) = "SI" Then
-        SetSaveUserEntry 30, "ENG"
+        ReportFillMod.SetSaveUserEntry 30, "ENG"
     Else
-        SetSaveUserEntry 30, "SI"
+        ReportFillMod.SetSaveUserEntry 30, "SI"
     End If
     
-    UpdateDashboard (True)
+    UpdateDashboard
 End Sub
 
 '======================================================================
-'================ FORM INTEGRATION ==================================
+'============== FORM INTEGRATION ====================================
 '======================================================================
 
 ' Function for forms to check if data is available
@@ -517,4 +696,3 @@ SaveFailed:
     MsgBox "Save operation failed: " & Err.Description, vbCritical
     SaveFile = False
 End Function
-

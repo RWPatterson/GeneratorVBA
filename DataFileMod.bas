@@ -1,9 +1,21 @@
 Attribute VB_Name = "DataFileMod"
 Option Explicit
-' Modern DataFileMod - Enhanced Object Management
-' Robust TestData lifecycle management with automatic recovery
+' Modern DataFileMod - Enhanced Object Management with Reduced Bloat
+' Refactored to consolidate redundant functions and centralize sheet configuration
 
 Public TestData As DataFileClassMod
+
+' Centralized sheet name configuration - modify these constants to change all sheet references
+Private Const SHEET_RAWDATA As String = "RawData"
+Private Const SHEET_RAWCYCLEDATA As String = "RawCycleData"
+Private Const SHEET_HEADERDATA As String = "HeaderData"
+Private Const SHEET_ANALOGDATA As String = "AnalogData"
+Private Const SHEET_CYCLEANALOGDATA As String = "CycleAnalogData"
+Private Const SHEET_LBU_COUNTS As String = "LBU_CountsData"
+Private Const SHEET_LBD_COUNTS As String = "LBD_CountsData"
+Private Const SHEET_LBE_COUNTS As String = "LBE_CountsData"
+Private Const SHEET_LSU_COUNTS As String = "LSU_CountsData"
+Private Const SHEET_LSD_COUNTS As String = "LSD_CountsData"
 
 ' High-performance cache for worksheet operations
 Private Type WorksheetCache
@@ -25,32 +37,51 @@ Private Const CACHE_MISS As Long = -1
 '================ PUBLIC INTERFACE FUNCTIONS ========================
 '======================================================================
 
-' This function only VALIDATES and RECOVERS - it does NOT process data
+' CONSOLIDATED: Replaces EnsureTestDataReady, IsTestDataObjectValid, CreateOrRecoverTestDataObject, EnsureTestDataObject
 Public Function EnsureTestDataReady() As Boolean
     DevToolsMod.TimerStartCount
     
+    ' Single comprehensive validation and recovery function
+    EnsureTestDataReady = False
+    
+    On Error GoTo ValidationFailed
+    
     ' STEP 1: Check if object exists and is valid
-    If IsTestDataObjectValid() Then
-        DevToolsMod.TimerEndCount "TestData Ready (existing valid object)"
-        ' FIXED: Return True if object is valid, regardless of whether it has data
-        EnsureTestDataReady = True
-        Exit Function
+    If Not TestData Is Nothing Then
+        ' Validate object integrity
+        If TypeName(TestData) = "DataFileClassMod" And _
+           Not TestData.WorkbookInstance Is Nothing And _
+           TestData.WorkbookInstance.Name = ThisWorkbook.Name Then
+            ' Object is valid
+            DevToolsMod.TimerEndCount "TestData Ready (existing valid object)"
+            EnsureTestDataReady = True
+            Exit Function
+        End If
+        
+        ' Object exists but is invalid - clean it up
+        Set TestData = Nothing
+        Debug.Print "EnsureTestDataReady: Cleaned up invalid TestData object"
     End If
     
-    ' STEP 2: Object missing or invalid - attempt to create/recover
-    If Not CreateOrRecoverTestDataObject() Then
-        DevToolsMod.TimerEndCount "TestData Ready (failed - no object)"
-        EnsureTestDataReady = False
-        Exit Function
-    End If
+    ' STEP 2: Create new object
+    Set TestData = New DataFileClassMod
+    Set TestData.WorkbookInstance = ThisWorkbook
     
-    ' STEP 3: Object exists, return success
-    ' FIXED: Return True because we successfully have a valid object
-    DevToolsMod.TimerEndCount "TestData Ready (object recovered)"
+    TestData.CycleDataExist = (SheetExists(SHEET_RAWCYCLEDATA) And Sheets(SHEET_RAWCYCLEDATA).Cells(1, 1).Value = ";Data Format:")
+    
+    Debug.Print "EnsureTestDataReady: Created new TestData object, DataExist=" & TestData.DataExist
+    
     EnsureTestDataReady = True
+    DevToolsMod.TimerEndCount "TestData Ready (object created)"
+    Exit Function
+    
+ValidationFailed:
+    Debug.Print "EnsureTestDataReady Error: " & Err.Description
+    EnsureTestDataReady = False
+    DevToolsMod.TimerEndCount "TestData Ready (failed)"
 End Function
 
-'Function specifically for Main.GenerateReport to check if processing needed
+' Function specifically for Main.GenerateReport to check if processing needed
 Public Function ShouldProcessRawData() As Boolean
     Debug.Print "ShouldProcessRawData: Starting check..."
     
@@ -65,17 +96,16 @@ Public Function ShouldProcessRawData() As Boolean
     Dim hasRawData As Boolean
     hasRawData = False
     
-    If SheetExists("RawData") Then
+    If SheetExists(SHEET_RAWDATA) Then
         Dim headerValue As Variant
-        headerValue = Sheets("RawData").Cells(1, 1).Value
+        headerValue = Sheets(SHEET_RAWDATA).Cells(1, 1).Value
         Debug.Print "ShouldProcessRawData: RawData A1 = '" & headerValue & "'"
         
         hasRawData = (CStr(headerValue) = "HEADER")
         
         If hasRawData Then
-            ' Also check if there's sufficient data
             Dim usedRows As Long
-            usedRows = Sheets("RawData").usedRange.Rows.count
+            usedRows = Sheets(SHEET_RAWDATA).usedRange.Rows.count
             Debug.Print "ShouldProcessRawData: RawData has " & usedRows & " rows"
             hasRawData = (usedRows >= 10)
         End If
@@ -83,13 +113,11 @@ Public Function ShouldProcessRawData() As Boolean
         Debug.Print "ShouldProcessRawData: RawData sheet does not exist"
     End If
     
-    ' FIXED: Check if data has been actually PROCESSED, not just if object says DataExist
-    ' Look for evidence of actual processing - populated arrays and properties
+    ' Check if data has been actually PROCESSED
     Dim hasProcessedData As Boolean
     hasProcessedData = False
     
     If TestData.DataExist Then
-        ' Additional checks to ensure data is actually processed
         hasProcessedData = (TestData.FileName <> "" And _
                            TestData.testType <> "" And _
                            TestData.DataRowCount > 0)
@@ -102,9 +130,7 @@ Public Function ShouldProcessRawData() As Boolean
     Debug.Print "ShouldProcessRawData: hasRawData = " & hasRawData
     Debug.Print "ShouldProcessRawData: hasProcessedData = " & hasProcessedData
     
-    ' Return true if we have raw data but no properly processed data
     ShouldProcessRawData = (hasRawData And Not hasProcessedData)
-    
     Debug.Print "ShouldProcessRawData: Final result = " & ShouldProcessRawData
 End Function
 
@@ -116,7 +142,7 @@ Public Sub ProcessDataFile()
     On Error GoTo CleanExit
     
     ' Ensure we have a valid object before processing
-    If Not EnsureTestDataObject() Then
+    If Not EnsureTestDataReady() Then
         Debug.Print "ProcessDataFile: Failed to create TestData object"
         GoTo CleanExit
     End If
@@ -128,7 +154,7 @@ Public Sub ProcessDataFile()
     End If
     
     ' Build cache and process data
-    BuildWorksheetCache "RawData"
+    BuildWorksheetCache SHEET_RAWDATA
     
     If Not wsCache.IsValid Then
         Debug.Print "ProcessDataFile: Failed to build valid worksheet cache"
@@ -155,113 +181,117 @@ CleanExit:
     End If
 End Sub
 
-
-'======================================================================
-'================ OBJECT LIFECYCLE MANAGEMENT =======================
-'======================================================================
-
-' Check if current TestData object is valid and ready for use
-Private Function IsTestDataObjectValid() As Boolean
-    On Error GoTo ObjectInvalid
+' Public function to check TestData status
+Public Function GetTestDataStatus() As String
+    Dim status As String
     
-    IsTestDataObjectValid = False
-    
-    ' Check if object exists
-    If TestData Is Nothing Then Exit Function
-    
-    ' Check if object is the correct type
-    If TypeName(TestData) <> "DataFileClassMod" Then Exit Function
-    
-    ' Check if WorkbookInstance is set
-    If TestData.WorkbookInstance Is Nothing Then Exit Function
-    
-    ' Check if WorkbookInstance points to current workbook
-    If TestData.WorkbookInstance.Name <> ThisWorkbook.Name Then Exit Function
-    
-    ' Object appears valid
-    IsTestDataObjectValid = True
-    Exit Function
-    
-ObjectInvalid:
-    IsTestDataObjectValid = False
-End Function
-
-
-' Create new TestData object or recover existing one
-Private Function CreateOrRecoverTestDataObject() As Boolean
-    On Error GoTo CreateFailed
-    
-    CreateOrRecoverTestDataObject = False
-    
-    ' Clean up any invalid existing object
-    If Not TestData Is Nothing Then
-        If Not IsTestDataObjectValid() Then
-            Set TestData = Nothing
+    If TestData Is Nothing Then
+        status = "TestData object is Nothing"
+    ElseIf TypeName(TestData) <> "DataFileClassMod" Or TestData.WorkbookInstance Is Nothing Then
+        status = "TestData object exists but is invalid"
+    ElseIf Not TestData.DataExist Then
+        status = "TestData object is valid but contains no data"
+    Else
+        status = "TestData object is valid and contains data"
+        status = status & vbCrLf & "  - File: " & TestData.FileName
+        status = status & vbCrLf & "  - Test Type: " & TestData.testType
+        status = status & vbCrLf & "  - Row Count: " & TestData.DataRowCount
+        
+        If Not IsEmpty(TestData.LB_Sizes) Then
+            status = status & vbCrLf & "  - LB Sizes: " & (UBound(TestData.LB_Sizes) - LBound(TestData.LB_Sizes) + 1) & " channels"
+        End If
+        
+        If Not IsEmpty(TestData.LS_Sizes) Then
+            status = status & vbCrLf & "  - LS Sizes: " & (UBound(TestData.LS_Sizes) - LBound(TestData.LS_Sizes) + 1) & " channels"
         End If
     End If
     
-    ' Create new object if needed
-    If TestData Is Nothing Then
-        Set TestData = New DataFileClassMod
-        Debug.Print "CreateOrRecoverTestDataObject: Created new TestData object"
-    End If
-    
-    ' Initialize object properties
-    Set TestData.WorkbookInstance = ThisWorkbook
-    
-    ' CRITICAL FIX: Don't set DataExist = False here, let the class initialize itself
-    ' The class constructor will properly check the RawData sheet
-    ' TestData.DataExist = False  <-- REMOVE THIS LINE
-    
-    TestData.CycleDataExist = (SheetExists("RawCycleData") And Sheets("RawCycleData").Cells(1, 1).Value = ";Data Format:")
-    
-    Debug.Print "CreateOrRecoverTestDataObject: TestData.DataExist after init = " & TestData.DataExist
-    
-    CreateOrRecoverTestDataObject = True
-    Exit Function
-    
-CreateFailed:
-    Debug.Print "CreateOrRecoverTestDataObject Error: " & Err.Description
-    CreateOrRecoverTestDataObject = False
+    GetTestDataStatus = status
 End Function
 
-' Ensure TestData object exists (simplified version for internal use)
-Private Function EnsureTestDataObject() As Boolean
-    If IsTestDataObjectValid() Then
-        EnsureTestDataObject = True
-    Else
-        EnsureTestDataObject = CreateOrRecoverTestDataObject()
+' Public function to force object recreation (for troubleshooting)
+Public Sub ForceTestDataRecreation()
+    Debug.Print "ForceTestDataRecreation: Disposing current object and creating new"
+    Set TestData = Nothing
+    Call EnsureTestDataReady
+    Debug.Print "ForceTestDataRecreation: " & GetTestDataStatus()
+End Sub
+
+' Public function to validate TestData integrity
+Public Function ValidateTestDataIntegrity() As Boolean
+    ValidateTestDataIntegrity = False
+    
+    If Not EnsureTestDataReady() Then
+        Debug.Print "ValidateTestDataIntegrity: EnsureTestDataReady failed"
+        Exit Function
     End If
+    
+    If Not TestData.DataExist Then
+        Debug.Print "ValidateTestDataIntegrity: No data exists"
+        Exit Function
+    End If
+    
+    ' Check essential arrays
+    If IsEmpty(TestData.AnalogTags) Then
+        Debug.Print "ValidateTestDataIntegrity: Missing AnalogTags"
+        Exit Function
+    End If
+    
+    If IsEmpty(TestData.analogData) Then
+        Debug.Print "ValidateTestDataIntegrity: Missing analogData"
+        Exit Function
+    End If
+    
+    If IsEmpty(TestData.Times) Then
+        Debug.Print "ValidateTestDataIntegrity: Missing Times"
+        Exit Function
+    End If
+    
+    If TestData.DataRowCount <= 0 Then
+        Debug.Print "ValidateTestDataIntegrity: Invalid DataRowCount"
+        Exit Function
+    End If
+    
+    ' Check array dimensions match
+    If UBound(TestData.Times) <> TestData.DataRowCount Then
+        Debug.Print "ValidateTestDataIntegrity: Times array size mismatch"
+        Exit Function
+    End If
+    
+    If UBound(TestData.analogData, 1) <> TestData.DataRowCount Then
+        Debug.Print "ValidateTestDataIntegrity: analogData row count mismatch"
+        Exit Function
+    End If
+    
+    Debug.Print "ValidateTestDataIntegrity: All checks passed"
+    ValidateTestDataIntegrity = True
 End Function
+
+'======================================================================
+'================ PRIVATE HELPER FUNCTIONS ===========================
+'======================================================================
 
 ' Validate that raw data exists and is processable
 Private Function ValidateRawDataExists() As Boolean
     ValidateRawDataExists = False
     
-    ' Check if RawData sheet exists
-    If Not SheetExists("RawData") Then
+    If Not SheetExists(SHEET_RAWDATA) Then
         Debug.Print "ValidateRawDataExists: RawData sheet does not exist"
         Exit Function
     End If
     
-    ' Check if sheet has the expected header
-    If Sheets("RawData").Cells(1, 1).Value <> "HEADER" Then
+    If Sheets(SHEET_RAWDATA).Cells(1, 1).Value <> "HEADER" Then
         Debug.Print "ValidateRawDataExists: RawData sheet does not contain expected header"
         Exit Function
     End If
     
-    ' Check if sheet has any data beyond the header
-    If Sheets("RawData").usedRange.Rows.count < 10 Then
+    If Sheets(SHEET_RAWDATA).usedRange.Rows.count < 10 Then
         Debug.Print "ValidateRawDataExists: RawData sheet appears to have insufficient data"
         Exit Function
     End If
     
     ValidateRawDataExists = True
 End Function
-
-'======================================================================
-'================ DATA PROCESSING FUNCTIONS =========================
-'======================================================================
 
 ' Build comprehensive cache for worksheet operations
 Private Sub BuildWorksheetCache(wsName As String)
@@ -367,7 +397,7 @@ Private Sub ProcessHeaderData()
     Next i
     
     TestData.HeaderData = resultArray
-    Call TableMod.HeaderDataToSheet("HeaderData")
+    Call TableMod.HeaderDataToSheet(SHEET_HEADERDATA)
     
     DevToolsMod.TimerEndCount "Header Processing"
 End Sub
@@ -377,82 +407,67 @@ Private Sub ExtractTestConfiguration()
     DevToolsMod.TimerStartCount
     
     With TestData
-        .FileName = GetConfigValueSafe("General Test Information", "FileName", "Unknown File")
-        .FileDate = GetConfigValueSafe("General Test Information", "TestDate", Date)
-        .TestStartTime = GetConfigValueSafe("General Test Information", "TestTime", Time)
-        .testType = GetConfigValueSafe("General Test Information", "TestType", "Unknown Test Type")
-        .CountTime = GetConfigValueSafeInt("Particle Counter Configuration", "CountTime", 60)
-        .HoldTime = GetConfigValueSafeInt("Particle Counter Configuration", "HoldTime", 0)
-        .MidstreamFlag = GetConfigValueSafeBool("Dilution System Configuration", "MidstreamFlag", False)
-        .PressureSource = GetConfigValueSafe("Dilution System Configuration", "PressureSource", False)
-        .AuxPressureFlag = GetConfigValueSafeBool("Test System Configuration", "AuxPressureFlag", False)
-        .TestSetup = GetConfigValueSafe("Test System Configuration", "Setup", "Spin On")
+        .FileName = GetConfigValue("General Test Information", "FileName", vbString, "Unknown File")
+        .FileDate = GetConfigValue("General Test Information", "TestDate", vbDate, Date)
+        .TestStartTime = GetConfigValue("General Test Information", "TestTime", vbDate, Time)
+        .testType = GetConfigValue("General Test Information", "TestType", vbString, "Unknown Test Type")
+        .CountTime = GetConfigValue("Particle Counter Configuration", "CountTime", vbLong, 60)
+        .HoldTime = GetConfigValue("Particle Counter Configuration", "HoldTime", vbLong, 0)
+        .MidstreamFlag = GetConfigValue("Dilution System Configuration", "MidstreamFlag", vbBoolean, False)
+        .PressureSource = GetConfigValue("Dilution System Configuration", "PressureSource", vbString, False)
+        .AuxPressureFlag = GetConfigValue("Test System Configuration", "AuxPressureFlag", vbBoolean, False)
+        .TestSetup = GetConfigValue("Test System Configuration", "Setup", vbString, "Spin On")
     End With
     
     DevToolsMod.TimerEndCount "Test Configuration Extraction"
 End Sub
 
-' Safe config value retrieval with comprehensive fallback handling
-Private Function GetConfigValueSafe(section As String, key As String, defaultValue As Variant) As Variant
+' CONSOLIDATED: Replaces GetConfigValueSafe, GetConfigValueSafeInt, GetConfigValueSafeBool
+Private Function GetConfigValue(section As String, key As String, valueType As VbVarType, defaultValue As Variant) As Variant
     On Error GoTo UseDefault
     
     Dim result As Variant
-    result = GetValueFromTable("HeaderData", section, key, 1)
+    result = GetValueFromTable(SHEET_HEADERDATA, section, key, 1)
     
     ' Check if result is empty, null, or error value
     If IsEmpty(result) Or IsNull(result) Or IsError(result) Then
         GoTo UseDefault
     End If
     
-    ' Additional validation for string values
-    If VarType(defaultValue) = vbString Then
-        If Trim(CStr(result)) = "" Or CStr(result) = "#N/A" Or CStr(result) = "ERROR" Then
-            GoTo UseDefault
-        End If
-    End If
+    ' Type-specific validation and conversion
+    Select Case valueType
+        Case vbString
+            If Trim(CStr(result)) = "" Or CStr(result) = "#N/A" Or CStr(result) = "ERROR" Then
+                GoTo UseDefault
+            End If
+            GetConfigValue = CStr(result)
+            
+        Case vbLong, vbInteger
+            If Not IsNumeric(result) Then GoTo UseDefault
+            Dim tempInt As Long
+            tempInt = CLng(result)
+            If tempInt < 0 Or tempInt > 86400 Then GoTo UseDefault  ' Sanity check for time values
+            GetConfigValue = tempInt
+            
+        Case vbBoolean
+            GetConfigValue = MathMod.ConvertToBool(result)
+            
+        Case vbDate
+            If IsDate(result) Then
+                GetConfigValue = CDate(result)
+            Else
+                GoTo UseDefault
+            End If
+            
+        Case Else
+            GetConfigValue = result
+    End Select
     
-    GetConfigValueSafe = result
     Exit Function
     
 UseDefault:
-    GetConfigValueSafe = defaultValue
-    Debug.Print "GetConfigValueSafe: Using default for " & section & "." & key & " = " & defaultValue
-End Function
-
-' Safe integer config value retrieval
-Private Function GetConfigValueSafeInt(section As String, key As String, defaultValue As Long) As Long
-    On Error GoTo UseDefault
-    
-    Dim result As Variant
-    result = GetConfigValueSafe(section, key, defaultValue)
-    
-    If IsNumeric(result) Then
-        Dim tempInt As Long
-        tempInt = CLng(result)
-        If tempInt >= 0 And tempInt <= 86400 Then  ' 0 to 24 hours in seconds
-            GetConfigValueSafeInt = tempInt
-            Exit Function
-        End If
-    End If
-    
-UseDefault:
-    GetConfigValueSafeInt = defaultValue
-    Debug.Print "GetConfigValueSafeInt: Using default for " & section & "." & key & " = " & defaultValue
-End Function
-
-' Safe boolean config value retrieval
-Private Function GetConfigValueSafeBool(section As String, key As String, defaultValue As Boolean) As Boolean
-    On Error GoTo UseDefault
-    
-    Dim result As Variant
-    result = GetConfigValueSafe(section, key, IIf(defaultValue, "True", "False"))
-    
-    GetConfigValueSafeBool = MathMod.ConvertToBool(result)
-    Exit Function
-    
-UseDefault:
-    GetConfigValueSafeBool = defaultValue
-    Debug.Print "GetConfigValueSafeBool: Using default for " & section & "." & key & " = " & defaultValue
+    GetConfigValue = defaultValue
+    Debug.Print "GetConfigValue: Using default for " & section & "." & key & " = " & defaultValue
 End Function
 
 ' Modern array processing with enhanced error handling
@@ -499,14 +514,14 @@ Private Sub ExtractAllTagArrays()
     Dim result As Variant
     
     ' Process AnalogTags
-    result = ExtractTagArray(";Data Format:", ";Data Format:", "RawData")
+    result = ExtractTagArray(";Data Format:", ";Data Format:", SHEET_RAWDATA)
     If Not IsEmpty(result) Then
         result = PrependArrayValue(result, "Test Time")
         TestData.AnalogTags = result
     End If
     
     ' Process CycleAnalogTags
-    result = ExtractTagArray(";Data Format:", ";Data Format:", "RawCycleData")
+    result = ExtractTagArray(";Data Format:", ";Data Format:", SHEET_RAWCYCLEDATA)
     If Not IsEmpty(result) Then
         result = PrependArrayValue(result, "Test Time")
         TestData.CycleAnalogTags = result
@@ -746,10 +761,10 @@ End Sub
 
 ' Streamlined cycle data processing
 Private Sub ProcessCycleData()
-    If Not SheetExists("RawCycleData") Then Exit Sub
+    If Not SheetExists(SHEET_RAWCYCLEDATA) Then Exit Sub
     
     Dim ws As Worksheet
-    Set ws = Sheets("RawCycleData")
+    Set ws = Sheets(SHEET_RAWCYCLEDATA)
     
     Dim endRow As Long
     Dim endRange As Range
@@ -827,28 +842,70 @@ Private Sub DeployDataToSheets()
     DevToolsMod.TimerEndCount "Data Deployment"
 End Sub
 
-' High-performance table formatting
+' CONSOLIDATED: Replaces FormatCountTable and FormatAnalogTable
 Private Sub FormatDataTables()
     DevToolsMod.TimerStartCount
     DevToolsMod.OptimizePerformance True
     
-    ' Format all count data tables
+    ' Format all count data tables using centralized sheet constants
     Dim countSheets As Variant
-    countSheets = Array("LBU_CountsData", "LBD_CountsData", "LBE_CountsData", "LSU_CountsData", "LSD_CountsData")
+    countSheets = Array(SHEET_LBU_COUNTS, SHEET_LBD_COUNTS, SHEET_LBE_COUNTS, SHEET_LSU_COUNTS, SHEET_LSD_COUNTS)
     
     Dim i As Long
     For i = 0 To UBound(countSheets)
         If SheetExists(CStr(countSheets(i))) Then
-            FormatCountTable CStr(countSheets(i))
+            FormatDataTable CStr(countSheets(i)), "Count"
         End If
     Next i
     
     ' Format analog data tables
-    If SheetExists("AnalogData") Then FormatAnalogTable "AnalogData"
-    If SheetExists("CycleAnalogData") Then FormatAnalogTable "CycleAnalogData"
+    If SheetExists(SHEET_ANALOGDATA) Then FormatDataTable SHEET_ANALOGDATA, "Analog"
+    If SheetExists(SHEET_CYCLEANALOGDATA) Then FormatDataTable SHEET_CYCLEANALOGDATA, "Analog"
     
     DevToolsMod.OptimizePerformance False
     DevToolsMod.TimerEndCount "Table Formatting"
+End Sub
+
+' CONSOLIDATED: Unified table formatting function (replaces FormatCountTable and FormatAnalogTable)
+Private Sub FormatDataTable(wsName As String, tableType As String)
+    On Error Resume Next
+    
+    Dim ws As Worksheet
+    Set ws = Sheets(wsName)
+    
+    Dim tbl As ListObject
+    For Each tbl In ws.ListObjects
+        With tbl
+            Select Case LCase(tableType)
+                Case "count"
+                    ' Time format for first column only
+                    If .ListColumns.count >= 1 Then
+                        .ListColumns(1).DataBodyRange.NumberFormat = "[h]:mm:ss.00"
+                    End If
+                    
+                    ' Number format for remaining columns
+                    If .ListColumns.count > 1 Then
+                        Dim numRange As Range
+                        Set numRange = .DataBodyRange.Resize(, .ListColumns.count - 1).offset(, 1)
+                        numRange.NumberFormat = "0.00"
+                    End If
+                    
+                Case "analog"
+                    ' Time format for first two columns
+                    If .ListColumns.count >= 1 Then .ListColumns(1).DataBodyRange.NumberFormat = "[h]:mm:ss.00"
+                    If .ListColumns.count >= 2 Then .ListColumns(2).DataBodyRange.NumberFormat = "[h]:mm:ss.00"
+                    
+                    ' Number format for remaining columns
+                    If .ListColumns.count > 2 Then
+                        Dim numRange2 As Range
+                        Set numRange2 = .DataBodyRange.Resize(, .ListColumns.count - 2).offset(, 2)
+                        numRange2.NumberFormat = "0.00"
+                    End If
+            End Select
+        End With
+    Next tbl
+    
+    On Error GoTo 0
 End Sub
 
 '======================================================================
@@ -861,59 +918,6 @@ Private Function SheetExists(sheetName As String) As Boolean
     SheetExists = (Sheets(sheetName).Name = sheetName)
     On Error GoTo 0
 End Function
-
-' Optimized count table formatting
-Private Sub FormatCountTable(wsName As String)
-    On Error Resume Next
-    
-    Dim ws As Worksheet
-    Set ws = Sheets(wsName)
-    
-    Dim tbl As ListObject
-    For Each tbl In ws.ListObjects
-        With tbl
-            ' Time format for first column
-            If .ListColumns.count >= 1 Then
-                .ListColumns(1).DataBodyRange.NumberFormat = "[h]:mm:ss.00"
-            End If
-            
-            ' Number format for remaining columns in single operation
-            If .ListColumns.count > 1 Then
-                Dim numRange As Range
-                Set numRange = .DataBodyRange.Resize(, .ListColumns.count - 1).offset(, 1)
-                numRange.NumberFormat = "0.00"
-            End If
-        End With
-    Next tbl
-    
-    On Error GoTo 0
-End Sub
-
-' Optimized analog table formatting
-Private Sub FormatAnalogTable(wsName As String)
-    On Error Resume Next
-    
-    Dim ws As Worksheet
-    Set ws = Sheets(wsName)
-    
-    Dim tbl As ListObject
-    For Each tbl In ws.ListObjects
-        With tbl
-            ' Time format for first two columns
-            If .ListColumns.count >= 1 Then .ListColumns(1).DataBodyRange.NumberFormat = "[h]:mm:ss.00"
-            If .ListColumns.count >= 2 Then .ListColumns(2).DataBodyRange.NumberFormat = "[h]:mm:ss.00"
-            
-            ' Number format for remaining columns
-            If .ListColumns.count > 2 Then
-                Dim numRange As Range
-                Set numRange = .DataBodyRange.Resize(, .ListColumns.count - 2).offset(, 2)
-                numRange.NumberFormat = "0.00"
-            End If
-        End With
-    Next tbl
-    
-    On Error GoTo 0
-End Sub
 
 ' Utility function for 2D to 1D array conversion
 Private Function ConvertToArray(rangeValue As Variant) As Variant
@@ -999,96 +1003,31 @@ ErrorHandler:
 End Function
 
 '======================================================================
-'================ PUBLIC CLEANUP AND DIAGNOSTIC =====================
+'================ SECTION ORGANIZATION FOR FUTURE REFACTORING =======
+'======================================================================
+'
+' This module is organized into logical sections that could be split into separate modules:
+'
+' SECTION 1: DATA OBJECT MANAGEMENT
+' - EnsureTestDataReady() [CONSOLIDATED object lifecycle management]
+' - ValidateRawDataExists()
+' - GetTestDataStatus(), ForceTestDataRecreation(), ValidateTestDataIntegrity() [diagnostic functions]
+'
+' SECTION 2: DATA PROCESSING PIPELINE
+' - ProcessDataFile() [main pipeline controller]
+' - BuildWorksheetCache(), ProcessHeaderData(), ExtractTestConfiguration()
+' - ProcessDataArrays(), ExtractAllTagArrays(), ExtractTagArray()
+' - Process3RowData(), Process5RowData(), Process5RowLBLS(), Process5RowLBLB()
+' - ProcessCycleData(), CalculateTimeArrays(), CalculateElapsedTimes()
+'
+' SECTION 3: DATA FORMATTING AND DEPLOYMENT
+' - DeployDataToSheets()
+' - FormatDataTables(), FormatDataTable() [CONSOLIDATED formatting functions]
+'
+' SECTION 4: UTILITY AND HELPER FUNCTIONS
+' - SheetExists(), ConvertToArray(), GetValueFromTable()
+' - FastStringExists(), PrependArrayValue()
+' - GetConfigValue() [CONSOLIDATED configuration retrieval]
+'
 '======================================================================
 
-' Public function to check TestData status
-Public Function GetTestDataStatus() As String
-    Dim status As String
-    
-    If TestData Is Nothing Then
-        status = "TestData object is Nothing"
-    ElseIf Not IsTestDataObjectValid() Then
-        status = "TestData object exists but is invalid"
-    ElseIf Not TestData.DataExist Then
-        status = "TestData object is valid but contains no data"
-    Else
-        status = "TestData object is valid and contains data"
-        status = status & vbCrLf & "  - File: " & TestData.FileName
-        status = status & vbCrLf & "  - Test Type: " & TestData.testType
-        status = status & vbCrLf & "  - Row Count: " & TestData.DataRowCount
-        
-        If Not IsEmpty(TestData.LB_Sizes) Then
-            status = status & vbCrLf & "  - LB Sizes: " & (UBound(TestData.LB_Sizes) - LBound(TestData.LB_Sizes) + 1) & " channels"
-        End If
-        
-        If Not IsEmpty(TestData.LS_Sizes) Then
-            status = status & vbCrLf & "  - LS Sizes: " & (UBound(TestData.LS_Sizes) - LBound(TestData.LS_Sizes) + 1) & " channels"
-        End If
-    End If
-    
-    GetTestDataStatus = status
-End Function
-
-' Public function to force object recreation (for troubleshooting)
-Public Sub ForceTestDataRecreation()
-    Debug.Print "ForceTestDataRecreation: Disposing current object and creating new"
-    
-    ' Clean up existing object
-    Set TestData = Nothing
-    
-    ' Force recreation through EnsureTestDataReady
-    Call EnsureTestDataReady
-    
-    Debug.Print "ForceTestDataRecreation: " & GetTestDataStatus()
-End Sub
-
-' Public function to validate TestData integrity
-Public Function ValidateTestDataIntegrity() As Boolean
-    ValidateTestDataIntegrity = False
-    
-    If Not EnsureTestDataReady() Then
-        Debug.Print "ValidateTestDataIntegrity: EnsureTestDataReady failed"
-        Exit Function
-    End If
-    
-    If Not TestData.DataExist Then
-        Debug.Print "ValidateTestDataIntegrity: No data exists"
-        Exit Function
-    End If
-    
-    ' Check essential arrays
-    If IsEmpty(TestData.AnalogTags) Then
-        Debug.Print "ValidateTestDataIntegrity: Missing AnalogTags"
-        Exit Function
-    End If
-    
-    If IsEmpty(TestData.analogData) Then
-        Debug.Print "ValidateTestDataIntegrity: Missing analogData"
-        Exit Function
-    End If
-    
-    If IsEmpty(TestData.Times) Then
-        Debug.Print "ValidateTestDataIntegrity: Missing Times"
-        Exit Function
-    End If
-    
-    If TestData.DataRowCount <= 0 Then
-        Debug.Print "ValidateTestDataIntegrity: Invalid DataRowCount"
-        Exit Function
-    End If
-    
-    ' Check array dimensions match
-    If UBound(TestData.Times) <> TestData.DataRowCount Then
-        Debug.Print "ValidateTestDataIntegrity: Times array size mismatch"
-        Exit Function
-    End If
-    
-    If UBound(TestData.analogData, 1) <> TestData.DataRowCount Then
-        Debug.Print "ValidateTestDataIntegrity: analogData row count mismatch"
-        Exit Function
-    End If
-    
-    Debug.Print "ValidateTestDataIntegrity: All checks passed"
-    ValidateTestDataIntegrity = True
-End Function
