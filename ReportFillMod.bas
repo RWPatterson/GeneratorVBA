@@ -22,7 +22,7 @@ On Error GoTo ErrorHandler
     Set tbl = ws.ListObjects("TranslationsDataTable") 'The SaveDataTable is always present in the workbook.
     LangColumn = GetSaveResult(57) + 1 'Get the current language offset
     
-    GetLanguageResult = tbl.DataBodyRange(ID, LangColumn).Value
+    GetLanguageResult = tbl.DataBodyRange(ID, LangColumn).value
     
 ExitFunction:
     Exit Function
@@ -58,7 +58,7 @@ Public Function GetSaveResult(ID As Long) As Variant
     Set tbl = ws.ListObjects("SaveDataTable")
     
     ' This just returns what's already in the Report Value column
-    GetSaveResult = tbl.DataBodyRange(ID, 3).Value
+    GetSaveResult = tbl.DataBodyRange(ID, 3).value
     
 ExitFunction:
     Exit Function
@@ -82,7 +82,7 @@ Public Sub SetSaveUserEntry(ID As Integer, SaveValue As String)
     Set ws = ThisWorkbook.Worksheets("Save_Data") 'This function is hardcoded to use the Save_Data Sheet.
     Set tbl = ws.ListObjects("SaveDataTable") 'The SaveDataTable is always present in the workbook.
 
-    tbl.DataBodyRange(ID, 4).Value = SaveValue
+    tbl.DataBodyRange(ID, 4).value = SaveValue
         
 ExitFunction:
     Exit Sub
@@ -106,7 +106,7 @@ Public Sub SetSaveCustomDefault(ID As Integer, SaveValue As String)
     Set ws = ThisWorkbook.Worksheets("Save_Data") 'This function is hardcoded to use the Save_Data Sheet.
     Set tbl = ws.ListObjects("SaveDataTable") 'The SaveDataTable is always present in the workbook.
     
-    tbl.DataBodyRange(ID, 5).Value = SaveValue
+    tbl.DataBodyRange(ID, 5).value = SaveValue
         
 ExitFunction:
     Exit Sub

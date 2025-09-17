@@ -43,7 +43,7 @@ Function OpenDataFile(Optional Extension As String = "dat", Optional wkSheet As 
         DFPath = ActiveWorkbook.Path
 
         ' Copy the data from the array to the worksheet
-        dataSheet.Range("A1").Resize(UBound(tempArray, 1), UBound(tempArray, 2)).Value = tempArray
+        dataSheet.Range("A1").Resize(UBound(tempArray, 1), UBound(tempArray, 2)).value = tempArray
 
         ' Close the opened workbook without showing any alerts
         Call CloseWorkbookWithoutAlerts(DFName)
@@ -79,7 +79,7 @@ Function OpenTextAndGetData(ByVal FileToOpen As Variant) As Variant
         Tab:=True, Semicolon:=False, Comma:=True, Space:=False, Other:=False
 
     ' Read the data into array
-    tempArray = ActiveSheet.usedRange.Value
+    tempArray = ActiveSheet.UsedRange.value
 
     ' Remove any double quotes from the data
     Call RemoveDoubleQuotes(tempArray)

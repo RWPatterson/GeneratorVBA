@@ -23,7 +23,7 @@ Public Sub OpenLogo()
 
     If logoPath = False Then Exit Sub
 
-    Range("Logo_Path").Value = logoPath
+    Range("Logo_Path").value = logoPath
     Set ws = ThisWorkbook.Sheets("Home")
 
     On Error Resume Next
@@ -47,7 +47,7 @@ Public Sub RemoveLogo()
         ws.OLEObjects(ControlName).Object.Picture = Nothing
         On Error GoTo 0
     Next i
-    Range("Logo_Path").Value = ""
+    Range("Logo_Path").value = ""
     MsgBox "Logo removed from all pages.", vbInformation
 End Sub
 
@@ -56,7 +56,7 @@ End Sub
 Public Sub ApplyLogoToAll()
     Dim logoPath As String
     InitLogoSheetList
-    logoPath = Range("Logo_Path").Value
+    logoPath = Range("Logo_Path").value
     
     If logoPath = "" Or Dir(logoPath) = "" Then
         MsgBox "No valid logo path specified. Please use 'Open Logo' first.", vbExclamation

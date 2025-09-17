@@ -59,7 +59,7 @@ Sub FillGravTable()
             .AddItem
             
             For j = 2 To tbl.ListColumns.count
-                val = dataRange.Cells(i, j).Value
+                val = dataRange.Cells(i, j).value
                 
                 ' Display empty strings if the cell is empty or Null
                 If IsNull(val) Or IsEmpty(val) Then
@@ -95,31 +95,31 @@ Private Sub UserForm_QueryClose(Cancel As Integer, CloseMode As Integer)
 End Sub
 '
 Private Sub GM_Volume_Change()
-    If AtoDbl(Me.GM_Volume.Value) = 0 Or Me.GM_Volume = Empty Then Me.GM_GravLevel.Value = Empty: Exit Sub  'Me.GM_Volume.Value = 0.0001  'Prevent divison by 0
-    If AtoDbl(Me.GM_DirtWeight.Value) = 0 Then Me.GM_GravLevel.Value = Empty: Exit Sub
-    Me.GM_GravLevel.Value = Format(AtoDbl(Me.GM_DirtWeight.Value) * 1000 * 1000 / AtoDbl(Me.GM_Volume.Value), "###0.0000")
+    If AtoDbl(Me.GM_Volume.value) = 0 Or Me.GM_Volume = Empty Then Me.GM_GravLevel.value = Empty: Exit Sub  'Me.GM_Volume.Value = 0.0001  'Prevent divison by 0
+    If AtoDbl(Me.GM_DirtWeight.value) = 0 Then Me.GM_GravLevel.value = Empty: Exit Sub
+    Me.GM_GravLevel.value = Format(AtoDbl(Me.GM_DirtWeight.value) * 1000 * 1000 / AtoDbl(Me.GM_Volume.value), "###0.0000")
 End Sub
 Private Sub GM_DirtWeight_Change()
-    If AtoDbl(Me.GM_Volume.Value) = 0 Then Me.GM_GravLevel.Value = Empty: Exit Sub
-    Me.GM_GravLevel.Value = Format(AtoDbl(Me.GM_DirtWeight.Value) * 1000 * 1000 / AtoDbl(Me.GM_Volume.Value), "###0.0000")
+    If AtoDbl(Me.GM_Volume.value) = 0 Then Me.GM_GravLevel.value = Empty: Exit Sub
+    Me.GM_GravLevel.value = Format(AtoDbl(Me.GM_DirtWeight.value) * 1000 * 1000 / AtoDbl(Me.GM_Volume.value), "###0.0000")
 End Sub
 Private Sub GM_CleanPad_Change()
-    If Me.GM_DirtyPad = Empty Or Me.GM_CleanPad = Empty Then Me.GM_DirtWeight.Value = Empty: Exit Sub
-    Me.GM_DirtWeight.Value = Format((AtoDbl(Me.GM_DirtyPad.Value) - AtoDbl(Me.GM_CleanPad.Value)), "###0.000000")
+    If Me.GM_DirtyPad = Empty Or Me.GM_CleanPad = Empty Then Me.GM_DirtWeight.value = Empty: Exit Sub
+    Me.GM_DirtWeight.value = Format((AtoDbl(Me.GM_DirtyPad.value) - AtoDbl(Me.GM_CleanPad.value)), "###0.000000")
 End Sub
 Private Sub GM_DirtyPad_Change()
-    If Me.GM_DirtyPad = Empty Or Me.GM_CleanPad = Empty Then Me.GM_DirtWeight.Value = Empty: Exit Sub
-    Me.GM_DirtWeight.Value = Format((AtoDbl(Me.GM_DirtyPad.Value) - AtoDbl(Me.GM_CleanPad.Value)), "###0.000000")
+    If Me.GM_DirtyPad = Empty Or Me.GM_CleanPad = Empty Then Me.GM_DirtWeight.value = Empty: Exit Sub
+    Me.GM_DirtWeight.value = Format((AtoDbl(Me.GM_DirtyPad.value) - AtoDbl(Me.GM_CleanPad.value)), "###0.000000")
 End Sub
 
 Private Sub GM_EmptyCup_Change()
-    If Me.GM_FullCup.Value = Empty Or Me.GM_EmptyCup = Empty Then Me.GM_Volume.Value = Empty: Exit Sub
-    Me.GM_Volume.Value = Format((AtoDbl(Me.GM_FullCup.Value) - AtoDbl(Me.GM_EmptyCup.Value)) / GetSaveResult(22), "###0.0000")
+    If Me.GM_FullCup.value = Empty Or Me.GM_EmptyCup = Empty Then Me.GM_Volume.value = Empty: Exit Sub
+    Me.GM_Volume.value = Format((AtoDbl(Me.GM_FullCup.value) - AtoDbl(Me.GM_EmptyCup.value)) / GetSaveResult(22), "###0.0000")
 End Sub
 
 Private Sub GM_FullCup_Change()
-    If Me.GM_FullCup.Value = Empty Or Me.GM_EmptyCup = Empty Then Me.GM_Volume.Value = Empty: Exit Sub
-    Me.GM_Volume.Value = Format((AtoDbl(Me.GM_FullCup.Value) - AtoDbl(Me.GM_EmptyCup.Value)) / GetSaveResult(22), "###0.0000")
+    If Me.GM_FullCup.value = Empty Or Me.GM_EmptyCup = Empty Then Me.GM_Volume.value = Empty: Exit Sub
+    Me.GM_Volume.value = Format((AtoDbl(Me.GM_FullCup.value) - AtoDbl(Me.GM_EmptyCup.value)) / GetSaveResult(22), "###0.0000")
 End Sub
 '
 '

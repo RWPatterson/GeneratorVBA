@@ -1,4 +1,11 @@
-﻿Private isAutomatedUpdate As Boolean ' Flag to suppress events during automation
+﻿Option Explicit
+' Save_Data Worksheet Module - Consolidated and Enhanced
+
+Private isAutomatedUpdate As Boolean ' Flag to suppress events during automation
+
+'======================================================================
+'================== MAIN WORKSHEET CHANGE HANDLER ==================
+'======================================================================
 
 Private Sub Worksheet_Change(ByVal Target As Range)
     Dim saveDataTable As ListObject
@@ -50,6 +57,10 @@ ErrorHandler:
     Debug.Print "Error in Worksheet_Change: " & Err.Description
 End Sub
 
+'======================================================================
+'================== RANGE VALIDATION AND EVENT CONTROL ==============
+'======================================================================
+
 ' Simplified - only allow changes to user-editable columns
 Private Function IsUserEditableRange(Target As Range) As Boolean
     Dim saveDataTable As ListObject
@@ -97,6 +108,10 @@ Public Sub EndAutomatedUpdate()
     isAutomatedUpdate = False
 End Sub
 
+'======================================================================
+'================== CHANGE HANDLING LOGIC ===========================
+'======================================================================
+
 ' Simplified change handling - no automatic conversions
 Private Sub HandleSaveDataChange(ByVal Target As Range, ByVal changedTable As ListObject)
     Dim changedRow As Long
@@ -117,9 +132,9 @@ Private Sub HandleSaveDataChange(ByVal Target As Range, ByVal changedTable As Li
     If changedRow <= 0 Then Exit Sub
     
     ' Get the ID and column header
-    changedID = changedTable.DataBodyRange(changedRow, 1).Value ' Assuming ID is column 1
-    columnHeader = changedTable.HeaderRowRange(changedCol).Value
-    newValue = Target.Value
+    changedID = changedTable.DataBodyRange(changedRow, 1).value ' Assuming ID is column 1
+    columnHeader = changedTable.HeaderRowRange(changedCol).value
+    newValue = Target.value
     
     ' Only handle ISO16889 User Entry changes that affect analysis
     If isISO16889Table And columnHeader = "User Entry" Then
@@ -130,215 +145,179 @@ Private Sub HandleSaveDataChange(ByVal Target As Range, ByVal changedTable As Li
     Call LogDataChange(columnHeader, changedID, newValue, isISO16889Table)
 End Sub
 
-' Simplified ISO16889 handling - validate and prompt for rebuild if needed
+'======================================================================
+'================== ISO16889 SPECIFIC HANDLING ======================
+'======================================================================
+
+' CONSOLIDATED: Single function to handle all ISO16889 user entries
 Private Sub HandleISO16889UserEntry(ID As Long, newValue As Variant)
+    ' Safety check for empty/null values
+    If IsEmpty(newValue) Or IsNull(newValue) Then
+        Debug.Print "ISO16889 User Entry is Empty/Null for ID " & ID
+        Exit Sub
+    End If
+    
     Select Case ID
         Case 2 ' Termination DP override
-            If IsNumeric(newValue) And newValue <> "" Then
-                If ValidateDPOverride(CDbl(newValue)) Then
-                    Call PromptForRebuildIfNeeded("DP override")
-                End If
-            End If
+            Call HandleDPOverride(newValue)
         Case 7 ' Filter selection
-            If IsNumeric(newValue) And newValue <> "" Then
-                If ValidateFilterSelection(CInt(newValue)) Then
-                    Call PromptForRebuildIfNeeded("filter selection")
-                End If
-            End If
+            Call HandleFilterOverride(newValue)
         Case 8 ' Sensor selection
-            If newValue <> "" Then
-                Call ValidateSensorSelection(CStr(newValue))
-                ' Sensor changes don't require rebuild - just display update
-            End If
+            Call HandleSensorOverride(newValue)
+        Case Else
+            Debug.Print "ISO16889 User Entry changed for ID " & ID & " (no special handling required)"
     End Select
 End Sub
 
-' Simplified validation - just validate, don't auto-correct
-Private Function ValidateDPOverride(newDP As Double) As Boolean
-    If ISO16889Mod.ISO16889ReportData Is Nothing Then
-        ValidateDPOverride = True
-        Exit Function
+' CONSOLIDATED: DP override handling with comprehensive validation
+Private Sub HandleDPOverride(newValue As Variant)
+    ' Convert to string first for safety
+    Dim dpString As String
+    dpString = CStr(newValue)
+    
+    ' Check if it's actually numeric
+    If Not IsNumeric(dpString) Or Trim(dpString) = "" Then
+        Debug.Print "DP override is not numeric: " & dpString
+        Exit Sub
     End If
     
-    If ISO16889Mod.ISO16889ReportData.IsValidDPOverride(newDP) Then
-        ValidateDPOverride = True
+    ' Convert to double
+    Dim dpValue As Double
+    dpValue = CDbl(dpString)
+    
+    ' Check for zero or negative values (silently ignore)
+    If dpValue <= 0 Then
+        Debug.Print "DP override is zero or negative: " & dpValue & " (ignoring)"
+        Exit Sub
+    End If
+    
+    ' Validate with ISO16889 system
+    If ISO16889Mod.ISO16889ReportData Is Nothing Then Exit Sub
+    
+    If ISO16889Mod.ISO16889ReportData.IsValidDPOverride(dpValue) Then
         Call ISO16889Mod.ISO16889ReportData.InvalidateCache
+        Call PromptForRebuildIfNeeded("DP override")
     Else
         Dim actualDP As Double
         actualDP = ISO16889Mod.ISO16889ReportData.GetActualTerminationDP()
         
-        MsgBox "Invalid DP override: " & newDP & vbCrLf & vbCrLf & _
+        MsgBox "Invalid DP override: " & dpValue & vbCrLf & vbCrLf & _
                "Maximum allowed: " & actualDP & vbCrLf & _
                "You can only trim data to a lower termination point.", _
                vbExclamation, "Invalid DP Override"
-        ValidateDPOverride = False
     End If
-End Function
-
-Private Sub ValidateAndApplyDPOverride(newDP As Variant)
-    ' Add comprehensive type checking to prevent mismatch errors
-    If IsEmpty(newDP) Or newDP = "" Then
-        Debug.Print "DP override is empty"
-        Exit Sub
-    End If
-    
-    If Not IsNumeric(newDP) Then
-        Debug.Print "DP override is not numeric: " & newDP & " (Type: " & TypeName(newDP) & ")"
-        Exit Sub
-    End If
-    
-    If ISO16889Mod.ISO16889ReportData Is Nothing Then
-        Debug.Print "ISO16889ReportData is Nothing, skipping DP validation"
-        Exit Sub
-    End If
-    
-    Dim dpValue As Double
-    On Error GoTo ConversionError
-    dpValue = CDbl(newDP)
-    On Error GoTo 0
-    
-    Dim actualTerminationDP As Double
-    actualTerminationDP = ISO16889Mod.ISO16889ReportData.GetActualTerminationDP()
-    
-    If ISO16889Mod.ISO16889ReportData.IsValidDPOverride(dpValue) Then
-        Call ISO16889Mod.ISO16889ReportData.InvalidateCache
-        Call PromptForISO16889Rebuild("DP override")
-    Else
-        MsgBox "Invalid DP override: " & dpValue & vbCrLf & vbCrLf & _
-               "Maximum allowed value: " & actualTerminationDP & vbCrLf & _
-               "You can only trim data to a lower termination point, not extrapolate beyond the actual test termination.", _
-               vbExclamation, "DP Override Validation"
-    End If
-    Exit Sub
-    
-ConversionError:
-    Debug.Print "Error converting DP value to Double: " & Err.Description
 End Sub
 
-
-Private Function ValidateFilterSelection(newFilter As Integer) As Boolean
-    If ISO16889Mod.ISO16889ReportData Is Nothing Then
-        ValidateFilterSelection = True
-        Exit Function
-    End If
+' CONSOLIDATED: Filter override handling with comprehensive validation
+Private Sub HandleFilterOverride(newValue As Variant)
+    ' Convert to string first for safety
+    Dim filterString As String
+    filterString = CStr(newValue)
     
-    If ISO16889Mod.ISO16889ReportData.IsValidFilterChoice(newFilter) Then
-        ValidateFilterSelection = True
-        Call ISO16889Mod.ISO16889ReportData.InvalidateCache
-    Else
-        Dim availableFilters As String
-        availableFilters = ISO16889Mod.ISO16889ReportData.GetAvailableFilterOptions()
-        
-        MsgBox "Filter " & newFilter & " is not available." & vbCrLf & _
-               "Available filters: " & availableFilters, _
-               vbExclamation, "Invalid Filter Selection"
-        ValidateFilterSelection = False
-    End If
-End Function
-
-Private Sub ValidateAndApplyFilterOverride(newFilter As Variant)
-    ' Add comprehensive type checking
-    If IsEmpty(newFilter) Or newFilter = "" Then
-        Debug.Print "Filter override is empty"
+    ' Check if it's actually numeric
+    If Not IsNumeric(filterString) Or Trim(filterString) = "" Then
+        Debug.Print "Filter override is not numeric: " & filterString
         Exit Sub
     End If
     
-    If Not IsNumeric(newFilter) Then
-        Debug.Print "Filter override is not numeric: " & newFilter & " (Type: " & TypeName(newFilter) & ")"
-        Exit Sub
-    End If
-    
-    If ISO16889Mod.ISO16889ReportData Is Nothing Then
-        Debug.Print "ISO16889ReportData is Nothing, skipping filter validation"
-        Exit Sub
-    End If
-    
+    ' Convert to integer
     Dim filterValue As Integer
-    On Error GoTo ConversionError
-    filterValue = CInt(newFilter)
-    On Error GoTo 0
+    filterValue = CInt(filterString)
+    
+    ' Check for zero or negative values (silently ignore)
+    If filterValue <= 0 Then
+        Debug.Print "Filter override is zero or negative: " & filterValue & " (ignoring)"
+        Exit Sub
+    End If
+    
+    ' Validate with ISO16889 system
+    If ISO16889Mod.ISO16889ReportData Is Nothing Then Exit Sub
     
     If ISO16889Mod.ISO16889ReportData.IsValidFilterChoice(filterValue) Then
         Call ISO16889Mod.ISO16889ReportData.InvalidateCache
-        Call PromptForISO16889Rebuild("filter selection")
+        Call PromptForRebuildIfNeeded("filter selection")
     Else
         Dim availableFilters As String
         availableFilters = ISO16889Mod.ISO16889ReportData.GetAvailableFilterOptions()
         
-        MsgBox "Invalid filter selection: Filter " & filterValue & vbCrLf & vbCrLf & _
-               "Available filters: " & availableFilters & vbCrLf & _
-               "Filter " & filterValue & " data is not available in this test file.", _
-               vbExclamation, "Filter Selection Validation"
+        MsgBox "Filter " & filterValue & " is not available." & vbCrLf & _
+               "Available filters: " & availableFilters, _
+               vbExclamation, "Invalid Filter Selection"
     End If
-    Exit Sub
-    
-ConversionError:
-    Debug.Print "Error converting filter value to Integer: " & Err.Description
 End Sub
 
-Private Function ValidateSensorSelection(newSensor As String) As Boolean
-    If ISO16889Mod.ISO16889ReportData Is Nothing Then
-        ValidateSensorSelection = True
-        Exit Function
+' CONSOLIDATED: Sensor override handling with beta value updates
+Private Sub HandleSensorOverride(newValue As Variant)
+    ' Convert to string safely
+    Dim sensorValue As String
+    sensorValue = CStr(newValue)
+    
+    ' Check for empty string (silently ignore)
+    If Trim(sensorValue) = "" Then
+        Debug.Print "Sensor override is empty string (ignoring)"
+        Exit Sub
     End If
     
-    If ISO16889Mod.ISO16889ReportData.IsValidSensorChoice(newSensor) Then
-        ValidateSensorSelection = True
+    ' Validate with ISO16889 system
+    If ISO16889Mod.ISO16889ReportData Is Nothing Then Exit Sub
+    
+    If ISO16889Mod.ISO16889ReportData.IsValidSensorChoice(sensorValue) Then
+        ' Update the class property
+        ISO16889Mod.ISO16889ReportData.TerminationSizePhrase = sensorValue
         
-        ' ENHANCED: Update the class property (was missing before)
-        ISO16889Mod.ISO16889ReportData.TerminationSizePhrase = newSensor
+        ' Trigger beta value updates in SaveData table
+        Call UpdateBetaValuesForSensorChange(sensorValue)
         
-        ' NEW: Trigger beta value updates in SaveData table
-        Call UpdateBetaValuesForSensorChange(newSensor)
-        
-        MsgBox "Sensor selection updated to " & newSensor & "." & vbCrLf & _
+        MsgBox "Sensor selection updated to " & sensorValue & "." & vbCrLf & _
                "Beta size values have been recalculated.", _
                vbInformation, "Sensor Updated"
     Else
         Dim availableSensors As String
         availableSensors = ISO16889Mod.ISO16889ReportData.GetAvailableSensorOptions()
         
-        MsgBox "Sensor '" & newSensor & "' is not available." & vbCrLf & _
+        MsgBox "Sensor '" & sensorValue & "' is not available." & vbCrLf & _
                "Available sensors: " & availableSensors, _
                vbExclamation, "Invalid Sensor Selection"
-        ValidateSensorSelection = False
     End If
-End Function
+End Sub
+
+'======================================================================
+'================== BETA SIZE RECALCULATION =========================
+'======================================================================
 
 Private Sub UpdateBetaValuesForSensorChange(newSensor As String)
     ' CRITICAL: Suppress change events during automated updates
-    Call BeginAutomatedUpdate  ' Use your existing method
+    Call BeginAutomatedUpdate
     
     On Error GoTo CleanupEvents
     
-    ' Recalculate all beta size values for the new sensor
-    Dim betaTargets As Variant
-    betaTargets = Array(2, 10, 75, 100, 200, 1000) ' Standard ISO 16889 beta levels
+    Debug.Print "Recalculating beta sizes for sensor change to: " & newSensor
     
-    Dim i As Long
-    For i = 0 To UBound(betaTargets)
-        Dim betaValue As Double
-        Dim sizeResult As String
-        Dim saveDataID As Long
-        
-        betaValue = betaTargets(i)
-        saveDataID = 9 + i  ' IDs 9-14 for beta sizes
-        
-        ' Calculate size for this beta using the NEW sensor
-        sizeResult = ISO16889ClassMod.GetISO16889SizeGivenBeta(betaValue)
-        
-        ' Update the From Data column with new calculation
-        Call ISO16889Mod.SetISO16889DataEntry(saveDataID, sizeResult)
-        
-        Debug.Print "Updated Beta " & betaValue & " size to: " & sizeResult & " (Sensor: " & newSensor & ")"
-    Next i
+    ' Force recalculation of beta sizes with new sensor
+    Call ISO16889Mod.ISO16889ReportData.InvalidateCache
+    Call ISO16889Mod.ISO16889ReportData.CalculateBetaSizes
+    
+    ' Update the SaveData table with new beta size values
+    Call ISO16889Mod.ManageISO16889SaveData(9, "SET_DATA", ISO16889Mod.ISO16889ReportData.ISO16889SizeAtBeta2)
+    Call ISO16889Mod.ManageISO16889SaveData(10, "SET_DATA", ISO16889Mod.ISO16889ReportData.ISO16889SizeAtBeta10)
+    Call ISO16889Mod.ManageISO16889SaveData(11, "SET_DATA", ISO16889Mod.ISO16889ReportData.ISO16889SizeAtBeta75)
+    Call ISO16889Mod.ManageISO16889SaveData(12, "SET_DATA", ISO16889Mod.ISO16889ReportData.ISO16889SizeAtBeta100)
+    Call ISO16889Mod.ManageISO16889SaveData(13, "SET_DATA", ISO16889Mod.ISO16889ReportData.ISO16889SizeAtBeta200)
+    Call ISO16889Mod.ManageISO16889SaveData(14, "SET_DATA", ISO16889Mod.ISO16889ReportData.ISO16889SizeAtBeta1000)
+    
+    Debug.Print "Beta size values updated for sensor: " & newSensor
     
 CleanupEvents:
-    Call EndAutomatedUpdate  ' Use your existing method
+    Call EndAutomatedUpdate
     If Err.Number <> 0 Then
         MsgBox "Error updating beta values: " & Err.Description, vbCritical
+        Debug.Print "ERROR in UpdateBetaValuesForSensorChange: " & Err.Description
     End If
 End Sub
+
+'======================================================================
+'================== USER INTERACTION AND LOGGING ====================
+'======================================================================
 
 ' Simple rebuild prompt - let user decide
 Private Sub PromptForRebuildIfNeeded(changeType As String)
@@ -352,9 +331,41 @@ Private Sub PromptForRebuildIfNeeded(changeType As String)
     End If
 End Sub
 
+' Prompt for sensor change (no rebuild needed)
+Private Sub PromptForSensorChange(newSensor As String)
+    Dim result As VbMsgBoxResult
+    
+    result = MsgBox("Change particle counter sensor to " & newSensor & "?" & vbCrLf & _
+                   "This will update report displays but does not require rebuilding analysis.", _
+                   vbYesNo + vbQuestion, "Sensor Change")
+    
+    If result = vbYes Then
+        MsgBox "Sensor selection updated. Report displays will now use " & newSensor & " data.", vbInformation
+    End If
+End Sub
+
+' Prompt user for rebuild when critical parameters change
+Private Sub PromptForISO16889Rebuild(changeType As String)
+    Dim result As VbMsgBoxResult
+    
+    result = MsgBox("Your " & changeType & " change requires rebuilding ISO 16889 analysis." & vbCrLf & _
+                   "Rebuild now?", vbYesNo + vbQuestion, "Rebuild Required")
+    
+    If result = vbYes Then
+        Call ISO16889Mod.ForceRebuildAnalysis
+    End If
+End Sub
+
 ' Simplified audit trail logging
 Private Sub LogDataChange(changeType As String, ID As Long, newValue As Variant, isISO16889 As Boolean)
     Dim tableType As String
     tableType = IIf(isISO16889, "ISO16889", "SaveData")
     Debug.Print Now & " - " & tableType & " ID " & ID & " - " & changeType & " = " & newValue
+End Sub
+
+' Mark template as modified
+Private Sub MarkTemplateAsModified()
+    ' Could set a flag or update a timestamp
+    ' ThisWorkbook.CustomDocumentProperties("TemplateModified") = True
+    Debug.Print "Template marked as modified"
 End Sub

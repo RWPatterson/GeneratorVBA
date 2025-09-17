@@ -878,7 +878,7 @@ Private Sub ClearISO16889Data()
     On Error Resume Next
     
     ' Clear the ISO16889Data sheet
-    Sheets("ISO16889Data").usedRange.Clear
+    Sheets("ISO16889Data").UsedRange.Clear
     
     ' Clear cache
     analysisCache.IsValid = False

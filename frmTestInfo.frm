@@ -31,7 +31,7 @@ Private Sub UserForm_Initialize()
     hasUnsavedChanges = False
     
     ' Set initial page
-    Me.MultiPage1.Value = 0
+    Me.MultiPage1.value = 0
     
     formLoaded = True
 End Sub
@@ -60,43 +60,43 @@ Private Sub FillFormDropdowns()
     ' Pressure unit dropdowns
     Set tbl = ws.ListObjects("TSDiffPressUnitsTable")
     If Not tbl Is Nothing Then
-        Me.TerminalDP_Unit.List = tbl.ListColumns(2).DataBodyRange.Value
-        Me.CleanHousingDP_Unit.List = tbl.ListColumns(2).DataBodyRange.Value
-        Me.CleanAssemblyDP_Unit.List = tbl.ListColumns(2).DataBodyRange.Value
-        Me.BypassDP_Unit.List = tbl.ListColumns(2).DataBodyRange.Value
+        Me.TerminalDP_Unit.List = tbl.ListColumns(2).DataBodyRange.value
+        Me.CleanHousingDP_Unit.List = tbl.ListColumns(2).DataBodyRange.value
+        Me.CleanAssemblyDP_Unit.List = tbl.ListColumns(2).DataBodyRange.value
+        Me.BypassDP_Unit.List = tbl.ListColumns(2).DataBodyRange.value
     End If
     
     ' Area unit dropdown
     Set tbl = ws.ListObjects("MediaAreaUnitsTable")
     If Not tbl Is Nothing Then
-        Me.Media_Area_Unit.List = tbl.ListColumns(2).DataBodyRange.Value
+        Me.Media_Area_Unit.List = tbl.ListColumns(2).DataBodyRange.value
     End If
     
     ' Pleat dimension dropdowns
     Set tbl = ws.ListObjects("MediaPleatHightUnitsTable")
     If Not tbl Is Nothing Then
-        Me.Media_PleatHeight_Unit.List = tbl.ListColumns(2).DataBodyRange.Value
-        Me.Media_PleatLength_Unit.List = tbl.ListColumns(2).DataBodyRange.Value
+        Me.Media_PleatHeight_Unit.List = tbl.ListColumns(2).DataBodyRange.value
+        Me.Media_PleatLength_Unit.List = tbl.ListColumns(2).DataBodyRange.value
     End If
     
     ' Bubble point dropdown
     Set tbl = ws.ListObjects("BubblePointUnitsTable")
     If Not tbl Is Nothing Then
-        Me.BubblePoint_Unit.List = tbl.ListColumns(2).DataBodyRange.Value
+        Me.BubblePoint_Unit.List = tbl.ListColumns(2).DataBodyRange.value
     End If
     
     ' Counter model dropdowns
     Set tbl = ws.ListObjects("APCCounterModelsTable")
     If Not tbl Is Nothing Then
-        Me.US_CounterType.List = tbl.ListColumns(2).DataBodyRange.Value
-        Me.DS_CounterType.List = tbl.ListColumns(2).DataBodyRange.Value
+        Me.US_CounterType.List = tbl.ListColumns(2).DataBodyRange.value
+        Me.DS_CounterType.List = tbl.ListColumns(2).DataBodyRange.value
     End If
     
     ' Sensor model dropdowns
     Set tbl = ws.ListObjects("APCSensorModelsTable")
     If Not tbl Is Nothing Then
-        Me.US_SensorType.List = tbl.ListColumns(2).DataBodyRange.Value
-        Me.DS_SensorType.List = tbl.ListColumns(2).DataBodyRange.Value
+        Me.US_SensorType.List = tbl.ListColumns(2).DataBodyRange.value
+        Me.DS_SensorType.List = tbl.ListColumns(2).DataBodyRange.value
     End If
     
     On Error GoTo 0
@@ -217,25 +217,25 @@ End Sub
 '======================================================================
 
 Private Sub NextBtn_Click()
-    If (Me.MultiPage1.Value = Me.MultiPage1.Pages.count - 1) Then
+    If (Me.MultiPage1.value = Me.MultiPage1.Pages.count - 1) Then
        NextBtn.Visible = False
        PrevBtn.Visible = True
     Else
-      If (Me.MultiPage1.Value = Me.MultiPage1.Pages.count - 2) And (frmTestInfo.MultiPage1.Pages("pg_Grph_Size").Visible = False) Then
+      If (Me.MultiPage1.value = Me.MultiPage1.Pages.count - 2) And (frmTestInfo.MultiPage1.Pages("pg_Grph_Size").Visible = False) Then
          NextBtn.Visible = False
          PrevBtn.Visible = True
       Else
-        If (Me.MultiPage1.Value = Me.MultiPage1.Pages.count - 3) And (frmTestInfo.MultiPage1.Pages("pg_Part_Size").enabled = False) Then
+        If (Me.MultiPage1.value = Me.MultiPage1.Pages.count - 3) And (frmTestInfo.MultiPage1.Pages("pg_Part_Size").enabled = False) Then
            NextBtn.Visible = False
            PrevBtn.Visible = True
         Else
             NextBtn.Visible = True
             PrevBtn.Visible = True
         
-            If Me.MultiPage1(Me.MultiPage1.Value + 1).enabled Then
-               Me.MultiPage1.Value = Me.MultiPage1.Value + 1
-            ElseIf Me.MultiPage1(Me.MultiPage1.Value + 2).enabled Then
-               Me.MultiPage1.Value = Me.MultiPage1.Value + 2
+            If Me.MultiPage1(Me.MultiPage1.value + 1).enabled Then
+               Me.MultiPage1.value = Me.MultiPage1.value + 1
+            ElseIf Me.MultiPage1(Me.MultiPage1.value + 2).enabled Then
+               Me.MultiPage1.value = Me.MultiPage1.value + 2
             End If
         End If
       End If
@@ -243,17 +243,17 @@ Private Sub NextBtn_Click()
 End Sub
 
 Private Sub PrevBtn_Click()
-    If Me.MultiPage1.Value = 0 Then
+    If Me.MultiPage1.value = 0 Then
        NextBtn.Visible = True
        PrevBtn.Visible = False
     Else
       PrevBtn.Visible = True
       NextBtn.Visible = True
    
-       If Me.MultiPage1(Me.MultiPage1.Value - 1).enabled Then
-          Me.MultiPage1.Value = Me.MultiPage1.Value - 1
-       ElseIf Me.MultiPage1(Me.MultiPage1.Value - 2).enabled Then
-          Me.MultiPage1.Value = Me.MultiPage1.Value - 2
+       If Me.MultiPage1(Me.MultiPage1.value - 1).enabled Then
+          Me.MultiPage1.value = Me.MultiPage1.value - 1
+       ElseIf Me.MultiPage1(Me.MultiPage1.value - 2).enabled Then
+          Me.MultiPage1.value = Me.MultiPage1.value - 2
        End If
      End If
 End Sub
@@ -281,10 +281,10 @@ End Sub
 '======================================================================
 
 Private Sub TestDay_BeforeUpdate(ByVal Cancel As MSForms.ReturnBoolean)
-   If Me.TestDay.Value <> "" Then
-     If Me.TestDay.Value < 1 Or Me.TestDay.Value > 31 Then
+   If Me.TestDay.value <> "" Then
+     If Me.TestDay.value < 1 Or Me.TestDay.value > 31 Then
        MsgBox ("Please enter a valid day")
-       Me.TestDay.Value = ""
+       Me.TestDay.value = ""
        Cancel = True
      Else
        Cancel = False
@@ -295,41 +295,41 @@ Private Sub TestDay_BeforeUpdate(ByVal Cancel As MSForms.ReturnBoolean)
 End Sub
 
 Private Sub TestMonth_BeforeUpdate(ByVal Cancel As MSForms.ReturnBoolean)
-     If Me.TestMonth.Value <> "" Then
-        If Me.TestMonth.Value < 1 Or Me.TestMonth.Value > 12 Then
+     If Me.TestMonth.value <> "" Then
+        If Me.TestMonth.value < 1 Or Me.TestMonth.value > 12 Then
            MsgBox ("Please enter a valid month")
-           Me.TestMonth.Value = ""
+           Me.TestMonth.value = ""
            Cancel = True
            Exit Sub
         Else
            Cancel = False
         End If
-        If Me.TestMonth.Value = 2 Then
-           If Me.TestDay.Value > 29 Then
+        If Me.TestMonth.value = 2 Then
+           If Me.TestDay.value > 29 Then
               MsgBox ("Please enter a valid day/month")
-              Me.TestMonth.Value = ""
-              Me.TestDay.Value = ""
+              Me.TestMonth.value = ""
+              Me.TestDay.value = ""
               Cancel = True
               Exit Sub
            Else
               Cancel = False
            End If
         Else
-           If Me.TestMonth.Value = 4 Or Me.TestMonth.Value = 6 Or Me.TestMonth.Value = 9 Or Me.TestMonth.Value = 11 Then
-              If Me.TestDay.Value > 30 Then
+           If Me.TestMonth.value = 4 Or Me.TestMonth.value = 6 Or Me.TestMonth.value = 9 Or Me.TestMonth.value = 11 Then
+              If Me.TestDay.value > 30 Then
                  MsgBox ("Please enter a valid day/month")
-                 Me.TestMonth.Value = ""
-                 Me.TestDay.Value = ""
+                 Me.TestMonth.value = ""
+                 Me.TestDay.value = ""
                  Cancel = True
                  Exit Sub
               Else
                  Cancel = False
               End If
            Else
-              If Me.TestDay.Value > 31 Then
+              If Me.TestDay.value > 31 Then
                  MsgBox ("Please enter a valid day/month")
-                 Me.TestMonth.Value = ""
-                 Me.TestDay.Value = ""
+                 Me.TestMonth.value = ""
+                 Me.TestDay.value = ""
                  Cancel = True
                  Exit Sub
               Else
@@ -346,10 +346,10 @@ Private Sub TestYear_BeforeUpdate(ByVal Cancel As MSForms.ReturnBoolean)
     Dim YDate As Date
     YDate = Year(Date)
         
-    If Me.TestYear.Value <> "" Then
-        If Me.TestYear.Value < 1980 Or Me.TestYear.Value > YDate Then
+    If Me.TestYear.value <> "" Then
+        If Me.TestYear.value < 1980 Or Me.TestYear.value > YDate Then
            MsgBox ("Please enter a valid year: yyyy")
-           Me.TestYear.Value = ""
+           Me.TestYear.value = ""
            Cancel = True
            Exit Sub
         Else
@@ -357,11 +357,11 @@ Private Sub TestYear_BeforeUpdate(ByVal Cancel As MSForms.ReturnBoolean)
         End If
          
          If IsDate(TestDay & "/" & TestMonth & "/" & TestYear) = True Then
-           Me.TestDate.Value = DateValue(TestDay & "/" & TestMonth & "/" & TestYear)
+           Me.TestDate.value = DateValue(TestDay & "/" & TestMonth & "/" & TestYear)
            Cancel = False
          Else
            MsgBox ("Please enter a valid date dd/mm/yyyy")
-           Me.TestYear.Value = ""
+           Me.TestYear.value = ""
            Cancel = True
          End If
     Else
@@ -378,24 +378,24 @@ Private Function GetControlValue(ctrl As Control) As Variant
     
     Select Case TypeName(ctrl)
         Case "TextBox", "ComboBox"
-            GetControlValue = ctrl.Value
+            GetControlValue = ctrl.value
         Case "CheckBox", "OptionButton"
-            GetControlValue = ctrl.Value
+            GetControlValue = ctrl.value
         Case Else
-            GetControlValue = ctrl.Value
+            GetControlValue = ctrl.value
     End Select
 End Function
 
-Private Sub SetControlValue(ctrl As Control, Value As Variant)
+Private Sub SetControlValue(ctrl As Control, value As Variant)
     On Error Resume Next
     
     Select Case TypeName(ctrl)
         Case "TextBox", "ComboBox"
-            ctrl.Value = Value
+            ctrl.value = value
         Case "CheckBox", "OptionButton"
-            ctrl.Value = CBool(Value)
+            ctrl.value = CBool(value)
         Case Else
-            ctrl.Value = Value
+            ctrl.value = value
     End Select
 End Sub
 

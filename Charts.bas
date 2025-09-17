@@ -153,7 +153,7 @@ Sub SetChartSeriesByRange(wkSheet As String, chartName As String, TopLeftAddress
     lastRow = topLeft.End(xlDown).Row
 
     ' OPTIMIZATION: Single bulk read of ALL data into memory
-    allData = ws.Range(topLeft, ws.Cells(lastRow, lastCol)).Value
+    allData = ws.Range(topLeft, ws.Cells(lastRow, lastCol)).value
     
     ' Extract headers (first row) and X data (first column, excluding header)
     headerArray = Application.index(allData, 1, 0)  ' First row
@@ -214,8 +214,8 @@ Public Function GetChartSaveResult(wkSheet As String, tableName As String, ID As
     
     ' Check columns 3 and 4 for values (User_Entry has priority over Calculated)
     For i = 3 To 4
-        If Not IsEmpty(tbl.DataBodyRange(ID, i).Value) And tbl.DataBodyRange(ID, i).Value <> "" Then
-            GetChartSaveResult = tbl.DataBodyRange(ID, i).Value
+        If Not IsEmpty(tbl.DataBodyRange(ID, i).value) And tbl.DataBodyRange(ID, i).value <> "" Then
+            GetChartSaveResult = tbl.DataBodyRange(ID, i).value
             GoTo ExitFunction
         End If
     Next i

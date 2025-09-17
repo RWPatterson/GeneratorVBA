@@ -26,26 +26,26 @@ End Function
 ' High-performance linear interpolation for array data
 Public Function FastLinearInterpolation(xPoint As Double, DataX As Variant, DataY As Variant) As Double
     Dim i As Long, lowerIdx As Long
-    Dim Value As Double: Value = xPoint
+    Dim value As Double: value = xPoint
     
     ' Find the bracketing points
     For i = LBound(DataX) To UBound(DataX) - 1
-        If DataX(i) <= Value And DataX(i + 1) >= Value Then
+        If DataX(i) <= value And DataX(i + 1) >= value Then
             lowerIdx = i
             Exit For
         End If
     Next i
     
     ' Check for exact matches (within tolerance)
-    If Abs(DataX(lowerIdx) - Value) < 0.00001 Then
+    If Abs(DataX(lowerIdx) - value) < 0.00001 Then
         FastLinearInterpolation = DataY(lowerIdx)
-    ElseIf Abs(DataX(lowerIdx + 1) - Value) < 0.00001 Then
+    ElseIf Abs(DataX(lowerIdx + 1) - value) < 0.00001 Then
         FastLinearInterpolation = DataY(lowerIdx + 1)
     Else
         ' Perform linear interpolation
         Dim xDelta As Double: xDelta = DataX(lowerIdx + 1) - DataX(lowerIdx)
         Dim yDelta As Double: yDelta = DataY(lowerIdx + 1) - DataY(lowerIdx)
-        FastLinearInterpolation = DataY(lowerIdx) + (Value - DataX(lowerIdx)) * (yDelta / xDelta)
+        FastLinearInterpolation = DataY(lowerIdx) + (value - DataX(lowerIdx)) * (yDelta / xDelta)
     End If
 End Function
 
@@ -392,10 +392,10 @@ Public Function WithinTolerance(value1 As Double, value2 As Double, tolerance As
 End Function
 
 ' Round to specified decimal places
-Public Function RoundTo(Value As Double, decimalPlaces As Long) As Double
+Public Function RoundTo(value As Double, decimalPlaces As Long) As Double
     Dim factor As Double
     factor = 10 ^ decimalPlaces
-    RoundTo = Int(Value * factor + 0.5) / factor
+    RoundTo = Int(value * factor + 0.5) / factor
 End Function
 
 '************************************************************

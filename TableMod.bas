@@ -10,17 +10,17 @@ Option Explicit
 
 'This sub takes in a 2d array of data, a worksheet destination and a cell
 Sub Array2DToRange(inputArray As Variant, tgtWksheet As String, TgtCell As String)
-    Worksheets(tgtWksheet).Range(TgtCell).Resize(UBound(inputArray, 1), UBound(inputArray, 2)).Value = inputArray
+    Worksheets(tgtWksheet).Range(TgtCell).Resize(UBound(inputArray, 1), UBound(inputArray, 2)).value = inputArray
 End Sub
 
 'This sub takes in a 1d array of data, a worksheet destination and a cell and writes it as a column
 Sub Array1DToRangeCol(inputArray As Variant, tgtWksheet As String, TgtCell As String)
-    Worksheets(tgtWksheet).Range(TgtCell).Resize(UBound(inputArray, 1), 1).Value = Application.Transpose(inputArray)
+    Worksheets(tgtWksheet).Range(TgtCell).Resize(UBound(inputArray, 1), 1).value = Application.Transpose(inputArray)
 End Sub
 
 'This sub takes in a 1d array of data, a worksheet destination and a cell and writes it as a row
 Sub Array1DToRangeRow(inputArray As Variant, tgtWksheet As String, TgtCell As String)
-    Worksheets(tgtWksheet).Range(TgtCell).Resize(1, UBound(inputArray, 1)).Value = inputArray
+    Worksheets(tgtWksheet).Range(TgtCell).Resize(1, UBound(inputArray, 1)).value = inputArray
 End Sub
 
 '********************************************************************************
@@ -33,31 +33,31 @@ Sub TimeArrayToDataSheets(inputArray As Variant, TgtCell As String)
     If Not DataFileMod.EnsureTestDataReady() Then Exit Sub
 
     If Not IsEmpty(DataFileMod.TestData.analogData) Then
-        Sheets("AnalogData").Range("A1").Value = "Elapsed Time"
+        Sheets("AnalogData").Range("A1").value = "Elapsed Time"
         Call Array1DToRangeCol(inputArray, "AnalogData", TgtCell)
     End If
     
     'Typical count and analog data share elapsed time, but cycle time has a different frequency
     If Not IsEmpty(DataFileMod.TestData.cycleAnalogData) Then
-        Sheets("CycleAnalogData").Range("A1").Value = "Elapsed Time"
+        Sheets("CycleAnalogData").Range("A1").value = "Elapsed Time"
         Call Array1DToRangeCol(DataFileMod.TestData.CycleTimes, "CycleAnalogData", TgtCell)
     End If
     
     If Not IsEmpty(DataFileMod.TestData.LB_Sizes) Then
-        Sheets("LB_Up_Counts").Range("A1").Value = "Elapsed Time"
-        Sheets("LB_Down_Counts").Range("A1").Value = "Elapsed Time"
+        Sheets("LB_Up_Counts").Range("A1").value = "Elapsed Time"
+        Sheets("LB_Down_Counts").Range("A1").value = "Elapsed Time"
         Call Array1DToRangeCol(inputArray, "LB_Up_Counts", TgtCell)
         Call Array1DToRangeCol(inputArray, "LB_Down_Counts", TgtCell)
     End If
     
     If Not IsEmpty(DataFileMod.TestData.LBE_Sizes) Then
-        Sheets("LBE_Down_Counts").Range("A1").Value = "Elapsed Time"
+        Sheets("LBE_Down_Counts").Range("A1").value = "Elapsed Time"
         Call Array1DToRangeCol(inputArray, "LBE_Down_Counts", TgtCell)
     End If
     
     If Not IsEmpty(DataFileMod.TestData.LS_Sizes) Then
-        Sheets("LS_Up_Counts").Range("A1").Value = "Elapsed Time"
-        Sheets("LS_Down_Counts").Range("A1").Value = "Elapsed Time"
+        Sheets("LS_Up_Counts").Range("A1").value = "Elapsed Time"
+        Sheets("LS_Down_Counts").Range("A1").value = "Elapsed Time"
         Call Array1DToRangeCol(inputArray, "LS_Up_Counts", TgtCell)
         Call Array1DToRangeCol(inputArray, "LS_Down_Counts", TgtCell)
     End If
@@ -132,7 +132,7 @@ Sub DeleteDataTables(TgtCell As String)
     
     ' Original clearing logic (unchanged)
     If Not IsEmpty(Sheets("HeaderData").Range(TgtCell)) Then
-        Sheets("HeaderData").usedRange.Clear
+        Sheets("HeaderData").UsedRange.Clear
         Sheets("HeaderData").Visible = xlSheetHidden
     End If
     
@@ -206,7 +206,7 @@ End Function
 
 Public Sub DisposeData(TgtCell As String)
     Call TableMod.DeleteDataTables(TgtCell)
-    Sheets("HeaderData").usedRange.Clear
+    Sheets("HeaderData").UsedRange.Clear
     Set DataFileMod.TestData = Nothing
 End Sub
 
@@ -348,7 +348,7 @@ Sub HeaderDataToSheet(TgtSheet As String)
             Next j
             'label the table on the sheet
             With Sheets(TgtSheet).Range("A" & WriteIndex)
-            .Value = Replace(SectNames(1, i + 1), ";", "")
+            .value = Replace(SectNames(1, i + 1), ";", "")
             .Font.Bold = True
             .Font.Underline = xlUnderlineStyleSingle
             End With
@@ -388,7 +388,7 @@ Function GetArrayFromTable(wkSheet As String, tblName As String, tblKey As Strin
     
     Set columnRange = tbl.ListColumns(tblKey).DataBodyRange
 
-    dataArray = columnRange.Value
+    dataArray = columnRange.value
         
     GetArrayFromTable = dataArray
 
@@ -436,7 +436,7 @@ End Function
 
 Sub SetValueInTableObj(tbl As ListObject, tblKey As String, valueIndex As Long, newValue As Variant)
     On Error GoTo ErrorHandler
-    tbl.ListColumns(tblKey).DataBodyRange(valueIndex, 1).Value = newValue
+    tbl.ListColumns(tblKey).DataBodyRange(valueIndex, 1).value = newValue
     Exit Sub
 ErrorHandler:
     MsgBox "SetValueInTable Error: cell not found or other error.", vbExclamation

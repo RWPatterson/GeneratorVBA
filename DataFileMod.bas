@@ -67,7 +67,7 @@ Public Function EnsureTestDataReady() As Boolean
     Set TestData = New DataFileClassMod
     Set TestData.WorkbookInstance = ThisWorkbook
     
-    TestData.CycleDataExist = (SheetExists(SHEET_RAWCYCLEDATA) And Sheets(SHEET_RAWCYCLEDATA).Cells(1, 1).Value = ";Data Format:")
+    TestData.CycleDataExist = (SheetExists(SHEET_RAWCYCLEDATA) And Sheets(SHEET_RAWCYCLEDATA).Cells(1, 1).value = ";Data Format:")
     
     Debug.Print "EnsureTestDataReady: Created new TestData object, DataExist=" & TestData.DataExist
     
@@ -98,14 +98,14 @@ Public Function ShouldProcessRawData() As Boolean
     
     If SheetExists(SHEET_RAWDATA) Then
         Dim headerValue As Variant
-        headerValue = Sheets(SHEET_RAWDATA).Cells(1, 1).Value
+        headerValue = Sheets(SHEET_RAWDATA).Cells(1, 1).value
         Debug.Print "ShouldProcessRawData: RawData A1 = '" & headerValue & "'"
         
         hasRawData = (CStr(headerValue) = "HEADER")
         
         If hasRawData Then
             Dim usedRows As Long
-            usedRows = Sheets(SHEET_RAWDATA).usedRange.Rows.count
+            usedRows = Sheets(SHEET_RAWDATA).UsedRange.Rows.count
             Debug.Print "ShouldProcessRawData: RawData has " & usedRows & " rows"
             hasRawData = (usedRows >= 10)
         End If
@@ -280,12 +280,12 @@ Private Function ValidateRawDataExists() As Boolean
         Exit Function
     End If
     
-    If Sheets(SHEET_RAWDATA).Cells(1, 1).Value <> "HEADER" Then
+    If Sheets(SHEET_RAWDATA).Cells(1, 1).value <> "HEADER" Then
         Debug.Print "ValidateRawDataExists: RawData sheet does not contain expected header"
         Exit Function
     End If
     
-    If Sheets(SHEET_RAWDATA).usedRange.Rows.count < 10 Then
+    If Sheets(SHEET_RAWDATA).UsedRange.Rows.count < 10 Then
         Debug.Print "ValidateRawDataExists: RawData sheet appears to have insufficient data"
         Exit Function
     End If
@@ -318,7 +318,7 @@ Private Sub BuildWorksheetCache(wsName As String)
         
         For i = 0 To 3
             Dim found As Range
-            Set found = ws.usedRange.Find(ranges(i), , , xlWhole, , , True)
+            Set found = ws.UsedRange.Find(ranges(i), , , xlWhole, , , True)
             positions(i) = IIf(found Is Nothing, CACHE_MISS, found.Row)
         Next i
         
@@ -326,7 +326,7 @@ Private Sub BuildWorksheetCache(wsName As String)
         .HeaderEnd = positions(1)
         .DataStart = positions(2) + 2  ' Skip format row
         .DataEnd = positions(3)
-        .lastCol = ws.usedRange.Columns.count
+        .lastCol = ws.UsedRange.Columns.count
         
         ' Calculate derived values
         If .DataStart > 0 And .DataEnd > 0 Then
@@ -349,7 +349,7 @@ End Sub
 ' Ultra-fast string existence check
 Private Function FastStringExists(ws As Worksheet, searchStr As String) As Boolean
     On Error Resume Next
-    FastStringExists = Not (ws.usedRange.Find(searchStr, , , xlWhole, , , True) Is Nothing)
+    FastStringExists = Not (ws.UsedRange.Find(searchStr, , , xlWhole, , , True) Is Nothing)
     On Error GoTo 0
 End Function
 
@@ -379,7 +379,7 @@ Private Sub ProcessHeaderData()
     Set headerRange = ws.Cells(wsCache.HeaderStart + 1, 1).Resize(headerRows, wsCache.lastCol)
     
     Dim rawData As Variant
-    rawData = headerRange.Value
+    rawData = headerRange.value
     
     ' Process header array in memory
     Dim resultArray As Variant
@@ -555,12 +555,12 @@ Private Function ExtractTagArray(section As String, key As String, sheetName As 
     
     ' Fast section location
     Dim sectionRange As Range
-    Set sectionRange = ws.usedRange.Find(section, , , xlPart, , , True)
+    Set sectionRange = ws.UsedRange.Find(section, , , xlPart, , , True)
     If sectionRange Is Nothing Then Exit Function
     
     ' Search within section bounds
     Dim searchRange As Range
-    Set searchRange = ws.Range(sectionRange, ws.Cells(ws.usedRange.Rows.count, 1))
+    Set searchRange = ws.Range(sectionRange, ws.Cells(ws.UsedRange.Rows.count, 1))
     
     Dim keyRange As Range
     Set keyRange = searchRange.Find(key, , , xlWhole, , , True)
@@ -573,19 +573,19 @@ Private Function ExtractTagArray(section As String, key As String, sheetName As 
     If lastCol > keyRange.Column Then
         Dim dataRange As Range
         Set dataRange = ws.Range(keyRange.offset(0, 1), ws.Cells(keyRange.Row, lastCol))
-        ExtractTagArray = ConvertToArray(dataRange.Value)
+        ExtractTagArray = ConvertToArray(dataRange.value)
     End If
 End Function
 
 ' Fast array prepending without ReDim Preserve
-Private Function PrependArrayValue(arr As Variant, Value As Variant) As Variant
+Private Function PrependArrayValue(arr As Variant, value As Variant) As Variant
     Dim newSize As Long
     newSize = UBound(arr) - LBound(arr) + 2
     
     Dim result As Variant
     ReDim result(1 To newSize)
     
-    result(1) = Value
+    result(1) = value
     
     Dim i As Long
     For i = LBound(arr) To UBound(arr)
@@ -619,7 +619,7 @@ Private Sub Process3RowData()
     totalRows = wsCache.rowCount * 3
     
     Dim allData As Variant
-    allData = ws.Cells(wsCache.DataStart, 1).Resize(totalRows, pcCols + 1).Value
+    allData = ws.Cells(wsCache.DataStart, 1).Resize(totalRows, pcCols + 1).value
     
     ' Pre-allocate all result arrays
     Dim analogData As Variant, lbuData As Variant, lbdData As Variant
@@ -676,7 +676,7 @@ Private Sub Process5RowData()
     totalRows = wsCache.rowCount * 5
     
     Dim allData As Variant
-    allData = ws.Cells(wsCache.DataStart, 1).Resize(totalRows, pcCols + 1).Value
+    allData = ws.Cells(wsCache.DataStart, 1).Resize(totalRows, pcCols + 1).value
     
     ' Determine 5-row variant (LBLS vs LBLB)
     Dim hasLSSizes As Boolean
@@ -768,7 +768,7 @@ Private Sub ProcessCycleData()
     
     Dim endRow As Long
     Dim endRange As Range
-    Set endRange = ws.usedRange.Find("ENDDATA", , , xlWhole)
+    Set endRange = ws.UsedRange.Find("ENDDATA", , , xlWhole)
     If endRange Is Nothing Then Exit Sub
     
     endRow = endRange.Row
@@ -779,7 +779,7 @@ Private Sub ProcessCycleData()
     
     If rowCount > 0 And colCount > 0 Then
         TestData.CycleDataRowCount = rowCount
-        TestData.cycleAnalogData = ws.Cells(2, 1).Resize(rowCount, colCount + 1).Value
+        TestData.cycleAnalogData = ws.Cells(2, 1).Resize(rowCount, colCount + 1).value
     End If
 End Sub
 
@@ -991,7 +991,7 @@ Private Function GetValueFromTable(wkSheet As String, tblName As String, tblKey 
     
     ' Get value at specified index
     If valueIndex > 0 And valueIndex <= col.DataBodyRange.Rows.count Then
-        GetValueFromTable = col.DataBodyRange(valueIndex, 1).Value
+        GetValueFromTable = col.DataBodyRange(valueIndex, 1).value
     Else
         GetValueFromTable = Empty
     End If

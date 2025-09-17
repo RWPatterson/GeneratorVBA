@@ -23,7 +23,7 @@ Public Function GetEffectiveValue(tableType As String, ID As Long) As Variant
         Set tbl = ws.ListObjects("SaveDataTable")
     End If
     
-    GetEffectiveValue = tbl.DataBodyRange(ID, 3).Value ' Report Value column
+    GetEffectiveValue = tbl.DataBodyRange(ID, 3).value ' Report Value column
 End Function
 
 ' Set value with proper priority handling
@@ -56,7 +56,7 @@ Public Sub SetValue(tableType As String, ID As Long, newValue As Variant, source
     End Select
     
     ' Set the value
-    tbl.DataBodyRange(ID, targetColumn).Value = newValue
+    tbl.DataBodyRange(ID, targetColumn).value = newValue
     
     ' Handle special ISO 16889 cases
     If tableType = "ISO16889" Then
@@ -96,7 +96,7 @@ Public Function GetSourceValue(tableType As String, ID As Long, source As DataSo
             sourceColumn = 4
     End Select
     
-    GetSourceValue = tbl.DataBodyRange(ID, sourceColumn).Value
+    GetSourceValue = tbl.DataBodyRange(ID, sourceColumn).value
 End Function
 
 ' Check if value has been overridden by user
@@ -157,7 +157,7 @@ Public Function GetDisplayName(tableType As String, ID As Long) As String
         Set tbl = ws.ListObjects("SaveDataTable")
     End If
     
-    GetDisplayName = tbl.DataBodyRange(ID, 2).Value ' Display Name column
+    GetDisplayName = tbl.DataBodyRange(ID, 2).value ' Display Name column
 End Function
 
 ' Get all IDs for a table (for populating forms)
@@ -173,7 +173,7 @@ Public Function GetAllIDs(tableType As String) As Variant
         Set tbl = ws.ListObjects("SaveDataTable")
     End If
     
-    GetAllIDs = tbl.DataBodyRange.Columns(1).Value ' ID column
+    GetAllIDs = tbl.DataBodyRange.Columns(1).value ' ID column
 End Function
 
 ' Validation helpers for forms with informative messages

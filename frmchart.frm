@@ -74,7 +74,7 @@ Private Sub ChartChoice_Click()
     Call DevToolsMod.OptimizePerformance(True)
 
     ' Get selected tab name from dropdown
-    selectedTabName = Me.ChartChoice.Value
+    selectedTabName = Me.ChartChoice.value
 
     If selectedTabName = "" Then
         MsgBox "Please select a chart from the list.", vbExclamation
@@ -144,19 +144,19 @@ Private Sub LoadChartParameters(wkSheet As String, tblName As String)
     Const XAxisMajorTickID As Integer = 11
 
     ' Load all parameters in sequence for better performance
-    Me.TitleChart.Value = GetChartSaveResult(wkSheet, tblName, ChartTitleID)
-    Me.TitleY.Value = GetChartSaveResult(wkSheet, tblName, YTitleID)
-    Me.TitleX.Value = GetChartSaveResult(wkSheet, tblName, XTitleID)
+    Me.TitleChart.value = GetChartSaveResult(wkSheet, tblName, ChartTitleID)
+    Me.TitleY.value = GetChartSaveResult(wkSheet, tblName, YTitleID)
+    Me.TitleX.value = GetChartSaveResult(wkSheet, tblName, XTitleID)
 
-    Me.YLog.Value = GetChartSaveResult(wkSheet, tblName, YAxisLogID)
-    Me.MinY.Value = GetChartSaveResult(wkSheet, tblName, YAxisMinID)
-    Me.MaxY.Value = GetChartSaveResult(wkSheet, tblName, YAxisMaxID)
-    Me.MajorY.Value = GetChartSaveResult(wkSheet, tblName, YAxisMajorTickID)
+    Me.YLog.value = GetChartSaveResult(wkSheet, tblName, YAxisLogID)
+    Me.MinY.value = GetChartSaveResult(wkSheet, tblName, YAxisMinID)
+    Me.MaxY.value = GetChartSaveResult(wkSheet, tblName, YAxisMaxID)
+    Me.MajorY.value = GetChartSaveResult(wkSheet, tblName, YAxisMajorTickID)
 
-    Me.XLog.Value = GetChartSaveResult(wkSheet, tblName, XAxisLogID)
-    Me.MinX.Value = GetChartSaveResult(wkSheet, tblName, XAxisMinID)
-    Me.MaxX.Value = GetChartSaveResult(wkSheet, tblName, XAxisMaxID)
-    Me.MajorX.Value = GetChartSaveResult(wkSheet, tblName, XAxisMajorTickID)
+    Me.XLog.value = GetChartSaveResult(wkSheet, tblName, XAxisLogID)
+    Me.MinX.value = GetChartSaveResult(wkSheet, tblName, XAxisMinID)
+    Me.MaxX.value = GetChartSaveResult(wkSheet, tblName, XAxisMaxID)
+    Me.MajorX.value = GetChartSaveResult(wkSheet, tblName, XAxisMajorTickID)
     
     Exit Sub
     
@@ -182,20 +182,20 @@ Private Sub SaveChartParameters(wkSheet As String, tblName As String)
     Set tbl = ws.ListObjects(tblName)
     
     ' Get current values to check for changes
-    currentValues = tbl.DataBodyRange.Columns(3).Value
+    currentValues = tbl.DataBodyRange.Columns(3).value
     
     ' Build array with all new values
-    dataArray(1, 1) = Me.TitleChart.Value
-    dataArray(2, 1) = Me.TitleY.Value
-    dataArray(3, 1) = Me.TitleX.Value
-    dataArray(4, 1) = IIf(Me.NewYLog.Value, "TRUE", "FALSE")
-    dataArray(5, 1) = Me.NewMinY.Value
-    dataArray(6, 1) = Me.NewMaxY.Value
-    dataArray(7, 1) = Me.NewMajorY.Value
-    dataArray(8, 1) = IIf(Me.NewXLog.Value, "TRUE", "FALSE")
-    dataArray(9, 1) = Me.NewMinX.Value
-    dataArray(10, 1) = Me.NewMaxX.Value
-    dataArray(11, 1) = Me.NewMajorX.Value
+    dataArray(1, 1) = Me.TitleChart.value
+    dataArray(2, 1) = Me.TitleY.value
+    dataArray(3, 1) = Me.TitleX.value
+    dataArray(4, 1) = IIf(Me.NewYLog.value, "TRUE", "FALSE")
+    dataArray(5, 1) = Me.NewMinY.value
+    dataArray(6, 1) = Me.NewMaxY.value
+    dataArray(7, 1) = Me.NewMajorY.value
+    dataArray(8, 1) = IIf(Me.NewXLog.value, "TRUE", "FALSE")
+    dataArray(9, 1) = Me.NewMinX.value
+    dataArray(10, 1) = Me.NewMaxX.value
+    dataArray(11, 1) = Me.NewMajorX.value
     
     ' Check if any values actually changed
     Dim i As Integer
@@ -208,7 +208,7 @@ Private Sub SaveChartParameters(wkSheet As String, tblName As String)
     
     ' Only write if there are actual changes
     If hasChanges Then
-        tbl.DataBodyRange.Columns(3).Value = dataArray
+        tbl.DataBodyRange.Columns(3).value = dataArray
         chartNeedsUpdate = True
     End If
     
@@ -303,7 +303,7 @@ Private Sub ResetChartsCB_Click()
     
     Call DevToolsMod.OptimizePerformance(True)
     
-    selectedTabName = Me.ChartChoice.Value
+    selectedTabName = Me.ChartChoice.value
     
     If selectedTabName = "" Then
         MsgBox "Please select a chart from the list before resetting.", vbExclamation
@@ -356,7 +356,7 @@ Private Sub ModChartCB_Click()
     Call DevToolsMod.OptimizePerformance(True)
 
     ' Ensure a chart is selected
-    selectedTabName = Me.ChartChoice.Value
+    selectedTabName = Me.ChartChoice.value
     If selectedTabName = "" Then
         MsgBox "Please select a chart from the list.", vbExclamation
         GoTo ExitHandler

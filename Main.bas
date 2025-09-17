@@ -157,22 +157,22 @@ Private Sub UpdateDashboardDisplay(hasData As Boolean, hasAnalysis As Boolean)
     Set ws = ThisWorkbook.Sheets("Dashboard")
     
     ' === Buttons that require data ===
-    HandleButton ws, "BtnModifyGravs", hasData, "EditGravimetrics"
+    HandleButton ws, "BtnModifyGravs", hasData, "ShowGravForm"
     HandleButton ws, "BtnModifyGraphs", hasData, "ShowChartForm"
     HandleButton ws, "BtnPrintReport", hasData, "PrintSelectedSheets"
     
     ' === Always visible buttons ===
     HandleButton ws, "BtnCreateReport", True, "CreateReport"
-    HandleButton ws, "BtnModifyLogo", True, "ModifyLogoMacro"
+    HandleButton ws, "BtnModifyLogo", True, "OpenLogo"
 
     ' === Macro changes & file name display ===
     If hasData Then
-        HandleButton ws, "BtnModifyTestInfo", True, "MacroModifyTestInfo_Normal"
+        HandleButton ws, "BtnModifyTestInfo", True, "ShowTestInfoForm"
         HandleButton ws, "BtnSaveReport", True, "SaveAsReport"
         ws.Shapes("BtnSaveReport").TextFrame.Characters.Text = "Save Report"
-        ws.Shapes("BoxFileName").TextFrame.Characters.Text = "File Name: " & Range("RD_FileName").Value
+        ws.Shapes("BoxFileName").TextFrame.Characters.Text = "File Name: " & Range("RD_FileName").value
     Else
-        HandleButton ws, "BtnModifyTestInfo", True, "MacroModifyTestInfo_CustomDefaults"
+        HandleButton ws, "BtnModifyTestInfo", True, "ShowTestInfoForm"
         HandleButton ws, "BtnSaveReport", True, "SaveAsTemplate"
         ws.Shapes("BtnSaveReport").TextFrame.Characters.Text = "Save Template"
         ws.Shapes("BoxFileName").TextFrame.Characters.Text = "File Name: "
@@ -239,7 +239,7 @@ End Sub
 Private Sub SetDashboardMessage(message As String)
     On Error Resume Next
     ' Update a status label or cell on the dashboard
-    Range("DashboardStatus").Value = message
+    Range("DashboardStatus").value = message
 End Sub
 
 Private Sub EnableDashboardButton(buttonName As String, enabled As Boolean)
@@ -259,7 +259,7 @@ Private Function HasUnprocessedRawData() As Boolean
     On Error Resume Next
     
     ' Quick check - is there a HEADER in RawData but no processed data arrays?
-    If Sheets("RawData").Cells(1, 1).Value = "HEADER" Then
+    If Sheets("RawData").Cells(1, 1).value = "HEADER" Then
         ' Raw data exists, check if TestData object has been populated
         If DataFileMod.TestData Is Nothing Then
             HasUnprocessedRawData = True
